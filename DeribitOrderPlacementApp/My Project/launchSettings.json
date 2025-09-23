@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DeribitOrderPlacementApp": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

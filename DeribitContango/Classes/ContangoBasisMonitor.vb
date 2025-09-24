@@ -126,6 +126,59 @@ Public Class ContangoBasisMonitor
         Return If(change > 0, "EXPANDING", "COMPRESSING")
     End Function
 
+    Public Function GetBasisStatistics() As BasisStatistics
+        If basisHistory.Count < 10 Then
+            Return New BasisStatistics() ' Empty stats
+        End If
+
+        Dim recent = basisHistory.TakeLast(100).Select(Function(x) x.BasisSpread).ToList()
+
+        Return New BasisStatistics With {
+            .Count = recent.Count,
+            .Average = recent.Average(),
+            .Minimum = recent.Min(),
+            .Maximum = recent.Max(),
+            .StandardDeviation = CalculateStandardDeviation(recent),
+            .MedianSpread = CalculateMedian(recent),
+            .CurrentPercentile = CalculatePercentile(recent, recent.Last())
+        }
+    End Function
+
+    Private Function CalculateStandardDeviation(values As List(Of Decimal)) As Decimal
+        If values.Count < 2 Then Return 0
+
+        Dim mean As Decimal = values.Average()
+        Dim sumSquareDiffs As Decimal = values.Sum(Function(x) (x - mean) * (x - mean))
+        Return CDec(Math.Sqrt(CDbl(sumSquareDiffs / (values.Count - 1))))
+    End Function
+
+    Private Function CalculateMedian(values As List(Of Decimal)) As Decimal
+        Dim sorted = values.OrderBy(Function(x) x).ToList()
+        Dim mid = sorted.Count \ 2
+
+        If sorted.Count Mod 2 = 0 Then
+            Return (sorted(mid - 1) + sorted(mid)) / 2
+        Else
+            Return sorted(mid)
+        End If
+    End Function
+
+    Private Function CalculatePercentile(values As List(Of Decimal), targetValue As Decimal) As Integer
+        Dim belowCount = values.Count(Function(x) x < targetValue)
+        Return CInt((belowCount / values.Count) * 100)
+    End Function
+
+
+End Class
+
+Public Class BasisStatistics
+    Public Property Count As Integer
+    Public Property Average As Decimal
+    Public Property Minimum As Decimal
+    Public Property Maximum As Decimal
+    Public Property StandardDeviation As Decimal
+    Public Property MedianSpread As Decimal
+    Public Property CurrentPercentile As Integer
 End Class
 
 Public Class BasisDataPoint

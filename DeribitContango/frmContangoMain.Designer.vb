@@ -23,6 +23,7 @@ Partial Class frmContangoMain
     <System.Diagnostics.DebuggerStepThrough()> _
     Private Sub InitializeComponent()
         pnlConnectionStatus = New Panel()
+        lblUptime = New Label()
         lblLastUpdate = New Label()
         lblRateLimit = New Label()
         lblConnectionStatus = New Label()
@@ -52,6 +53,7 @@ Partial Class frmContangoMain
         btnClearLogs = New Button()
         txtLogs = New RichTextBox()
         Label7 = New Label()
+        lblLatency = New Label()
         pnlConnectionStatus.SuspendLayout()
         pnlMarketData.SuspendLayout()
         pnlPositionManagement.SuspendLayout()
@@ -65,6 +67,8 @@ Partial Class frmContangoMain
         ' pnlConnectionStatus
         ' 
         pnlConnectionStatus.BackColor = SystemColors.AppWorkspace
+        pnlConnectionStatus.Controls.Add(lblLatency)
+        pnlConnectionStatus.Controls.Add(lblUptime)
         pnlConnectionStatus.Controls.Add(lblLastUpdate)
         pnlConnectionStatus.Controls.Add(lblRateLimit)
         pnlConnectionStatus.Controls.Add(lblConnectionStatus)
@@ -73,6 +77,17 @@ Partial Class frmContangoMain
         pnlConnectionStatus.Name = "pnlConnectionStatus"
         pnlConnectionStatus.Size = New Size(1178, 60)
         pnlConnectionStatus.TabIndex = 0
+        ' 
+        ' lblUptime
+        ' 
+        lblUptime.AutoSize = True
+        lblUptime.ForeColor = SystemColors.HotTrack
+        lblUptime.Location = New Point(586, 15)
+        lblUptime.MinimumSize = New Size(200, 25)
+        lblUptime.Name = "lblUptime"
+        lblUptime.Size = New Size(200, 25)
+        lblUptime.TabIndex = 3
+        lblUptime.Text = "Uptime:"
         ' 
         ' lblLastUpdate
         ' 
@@ -423,6 +438,17 @@ Partial Class frmContangoMain
         Label7.TabIndex = 7
         Label7.Text = "Trading Log"
         ' 
+        ' lblLatency
+        ' 
+        lblLatency.AutoSize = True
+        lblLatency.ForeColor = SystemColors.HotTrack
+        lblLatency.Location = New Point(745, 15)
+        lblLatency.MinimumSize = New Size(200, 25)
+        lblLatency.Name = "lblLatency"
+        lblLatency.Size = New Size(200, 25)
+        lblLatency.TabIndex = 4
+        lblLatency.Text = "Latency:"
+        ' 
         ' frmContangoMain
         ' 
         AutoScaleDimensions = New SizeF(10F, 25F)
@@ -482,4 +508,6 @@ Partial Class frmContangoMain
     Friend WithEvents btnClearLogs As Button
     Friend WithEvents txtLogs As RichTextBox
     Friend WithEvents Label7 As Label
+    Friend WithEvents lblUptime As Label
+    Friend WithEvents lblLatency As Label
 End Class

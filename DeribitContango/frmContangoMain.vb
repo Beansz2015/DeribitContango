@@ -246,14 +246,17 @@ Public Class frmContangoMain
             lblPositionStatus.Text = positionManager.GetPositionSummary()
             lblUnrealizedPnL.Text = $"Unrealized P&L: ${positionManager.CalculateUnrealizedPnL(currentBTCSpotPrice, currentWeeklyFuturesPrice):F2}"
 
-            ' Calculate hours to expiry in UTC
+            ' Calculate hours to expiry using stored expiry date
             Dim hoursToExpiry As Double = 0
 
             If positionManager.ExpiryDate > DateTime.MinValue Then
-                ' Convert expiry to UTC if needed and calculate hours remaining
                 Dim expiryUtc As DateTime = positionManager.ExpiryDate
+
+                ' Ensure UTC - this is the critical fix
                 If expiryUtc.Kind = DateTimeKind.Local Then
                     expiryUtc = expiryUtc.ToUniversalTime()
+                ElseIf expiryUtc.Kind = DateTimeKind.Unspecified Then
+                    expiryUtc = DateTime.SpecifyKind(expiryUtc, DateTimeKind.Utc)
                 End If
 
                 Dim timeToExpiry = expiryUtc.Subtract(DateTime.UtcNow)
@@ -267,6 +270,7 @@ Public Class frmContangoMain
             lblDaysToExpiry.Text = "Hours to Expiry: --"
         End If
     End Sub
+
 
 
     Private Sub UpdateUI_Tick(sender As Object, e As EventArgs)
@@ -556,36 +560,66 @@ Public Class frmContangoMain
     Private Function CalculateContractExpiry(contractName As String) As DateTime
         Try
             ' BTC weekly options expire Fridays at 08:00 UTC
-            ' Extract date from contract name (e.g., "BTC-26SEP25")
-            If contractName.Length >= 11 AndAlso contractName.StartsWith("BTC-") Then
-                Dim datePart As String = contractName.Substring(4, 7) ' "26SEP25"
+            ' Parse contract format: BTC-DDMMMYY (e.g., "BTC-26SEP25")
 
-                ' Parse the date components
-                Dim dayStr = datePart.Substring(0, 2)    ' "26"
-                Dim monthStr = datePart.Substring(2, 3)  ' "SEP"  
-                Dim yearStr = datePart.Substring(5, 2)   ' "25"
-
-                ' Convert month abbreviation to number
-                Dim monthNum As Integer = GetMonthNumber(monthStr)
-
-                If Integer.TryParse(dayStr, Nothing) AndAlso Integer.TryParse(yearStr, Nothing) AndAlso monthNum > 0 Then
-                    Dim year As Integer = 2000 + Integer.Parse(yearStr)
-                    Dim day As Integer = Integer.Parse(dayStr)
-
-                    ' Create UTC expiry time (Friday 08:00 UTC)
-                    Return New DateTime(year, monthNum, day, 8, 0, 0, DateTimeKind.Utc)
-                End If
+            If String.IsNullOrEmpty(contractName) OrElse Not contractName.StartsWith("BTC-") OrElse contractName.Length < 11 Then
+                AppendLog($"Invalid contract format: {contractName}", Color.Yellow)
+                Return DateTime.UtcNow.AddDays(7) ' Fallback
             End If
 
-            ' Fallback: assume next Friday 08:00 UTC
-            Dim nextFriday = GetNextFriday(DateTime.UtcNow)
-            Return New DateTime(nextFriday.Year, nextFriday.Month, nextFriday.Day, 8, 0, 0, DateTimeKind.Utc)
+            ' Extract date components
+            Dim datePart As String = contractName.Substring(4) ' Remove "BTC-"
+
+            If datePart.Length < 7 Then
+                AppendLog($"Invalid date part: {datePart}", Color.Yellow)
+                Return DateTime.UtcNow.AddDays(7) ' Fallback
+            End If
+
+            Dim dayStr = datePart.Substring(0, 2)    ' "26"
+            Dim monthStr = datePart.Substring(2, 3)  ' "SEP"  
+            Dim yearStr = datePart.Substring(5, 2)   ' "25"
+
+            ' Parse components
+            Dim day As Integer
+            Dim year As Integer
+
+            If Not Integer.TryParse(dayStr, day) OrElse day < 1 OrElse day > 31 Then
+                AppendLog($"Invalid day: {dayStr}", Color.Yellow)
+                Return DateTime.UtcNow.AddDays(7)
+            End If
+
+            If Not Integer.TryParse(yearStr, year) Then
+                AppendLog($"Invalid year: {yearStr}", Color.Yellow)
+                Return DateTime.UtcNow.AddDays(7)
+            End If
+
+            year += 2000 ' Convert 25 to 2025
+
+            Dim month As Integer = GetMonthNumber(monthStr)
+            If month = 0 Then
+                AppendLog($"Invalid month: {monthStr}", Color.Yellow)
+                Return DateTime.UtcNow.AddDays(7)
+            End If
+
+            ' Create UTC expiry (Friday 08:00 UTC) - THIS IS KEY
+            Dim calculatedExpiry As New DateTime(year, month, day, 8, 0, 0, DateTimeKind.Utc)
+
+            ' Validate it's in the future
+            If calculatedExpiry <= DateTime.UtcNow Then
+                AppendLog($"Contract {contractName} expired on {calculatedExpiry:yyyy-MM-dd HH:mm} UTC", Color.Orange)
+            End If
+
+            ' Success - log the calculated expiry
+            AppendLog($"Calculated expiry for {contractName}: {calculatedExpiry:yyyy-MM-dd HH:mm} UTC", Color.Gray)
+
+            Return calculatedExpiry
 
         Catch ex As Exception
-            ' Fallback calculation
-            Return DateTime.UtcNow.AddDays(7)
+            AppendLog($"Error parsing contract {contractName}: {ex.Message}", Color.Red)
+            Return DateTime.UtcNow.AddDays(7) ' Safe fallback
         End Try
     End Function
+
 
     Private Function GetMonthNumber(monthAbbr As String) As Integer
         Select Case monthAbbr.ToUpper()
@@ -1296,9 +1330,10 @@ Public Class frmContangoMain
                 AppendLog($"Trade details saved: Spot ${currentBTCSpotPrice:N2}, Futures ${currentWeeklyFuturesPrice:N2}", Color.Blue)
 
                 ' Update the position manager with actual entry values
+                Dim calculatedExpiry As DateTime = CalculateContractExpiry(currentWeeklyContract)
                 positionManager.OpenCashCarryPosition(currentBTCSpotPrice, currentWeeklyFuturesPrice,
-                                        positionSize, currentWeeklyContract,
-                                        DateTime.Now.AddDays(7))
+                                    positionSize, currentWeeklyContract,
+                                    calculatedExpiry)
             End If
 
 

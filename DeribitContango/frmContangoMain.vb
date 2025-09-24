@@ -24,6 +24,7 @@ Public Class frmContangoMain
     Private contangoDatabase As ContangoDatabase
     Private basisMonitor As ContangoBasisMonitor
     Private positionManager As ContangoPositionManager
+    Private performanceMonitor As New PerformanceMonitor
 
     ' Logging
     Private logLock As New Object()
@@ -46,7 +47,7 @@ Public Class frmContangoMain
 
     Private Async Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
-            PerformanceMonitor.StartTime = DateTime.Now
+            performanceMonitor.StartTime = DateTime.Now
 
             ' Initialize components
             InitializeComponents()
@@ -196,6 +197,7 @@ Public Class frmContangoMain
 
 #Region "Core Infrastructure Methods"
 
+
     Private Sub InitializeComponents()
         ' Initialize rate limiter
         rateLimiter = New DeribitRateLimiter(50, 10)
@@ -264,12 +266,12 @@ Public Class frmContangoMain
 
             ' Update rate limit
             'lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/{50}"
-            lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/50 ({PerformanceMonitor.MessagesPerSecond:F1}/sec)"
+            lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/50 ({performanceMonitor.MessagesPerSecond:F1}/sec)"
 
             ' Update last update time
             lblLastUpdate.Text = $"Last Update: {lastBasisUpdate:HH:mm:ss}"
 
-            lblUptime.Text = $"Uptime: {PerformanceMonitor.UptimePercent:F1}%"
+            lblUptime.Text = $"Uptime: {performanceMonitor.UptimePercent:F1}%"
             ' lblLatency.Text = $"Latency: {performanceMonitor.AverageLatency.TotalMilliseconds:F0}ms"
 
             ' Update position display
@@ -340,7 +342,7 @@ Public Class frmContangoMain
             Dim channel As String = json("params")?("channel")?.ToString()
 
             If Not String.IsNullOrEmpty(channel) Then
-                AppendLog($"Subscription confirmed: {channel}", Color.Cyan)
+                'AppendLog($"Subscription confirmed: {channel}", Color.Cyan)
 
                 ' Track active subscriptions
                 If Not availableWeeklyContracts.Contains(channel) Then
@@ -358,10 +360,12 @@ Public Class frmContangoMain
             Dim result As JObject = json("result")
 
             If result IsNot Nothing Then
-                ' Extract account balance information
+                ' Extract BTC balance information with higher precision
                 Dim totalBalance As Decimal = 0
                 Dim availableBalance As Decimal = 0
+                Dim equity As Decimal = 0
 
+                ' Try multiple field names that Deribit might use
                 If result("total_balance") IsNot Nothing Then
                     Decimal.TryParse(result("total_balance").ToString(), totalBalance)
                 End If
@@ -370,10 +374,25 @@ Public Class frmContangoMain
                     Decimal.TryParse(result("available_balance").ToString(), availableBalance)
                 End If
 
-                AppendLog($"Account Summary - Total: {totalBalance:F4} BTC, Available: {availableBalance:F4} BTC", Color.Green)
+                If result("equity") IsNot Nothing Then
+                    Decimal.TryParse(result("equity").ToString(), equity)
+                End If
 
-                ' Update UI if needed (add labels for account balance if desired)
-                ' Me.Invoke(Sub() lblAccountBalance.Text = $"Balance: {totalBalance:F4} BTC")
+                If result("balance") IsNot Nothing Then
+                    Decimal.TryParse(result("balance").ToString(), totalBalance)
+                End If
+
+                ' Use the highest precision value available
+                Dim displayBalance As Decimal = Math.Max(Math.Max(totalBalance, availableBalance), equity)
+
+                If displayBalance > 0 Then
+                    AppendLog($"BTC Balance: {displayBalance:F8} BTC (${displayBalance * currentBTCSpotPrice:F2})", Color.Green)
+
+                    ' Update UI if you want to show balance
+                    Me.Invoke(Sub() lblBTCBalance.Text = $"Balance: {displayBalance:F8} BTC")
+                Else
+                    AppendLog("BTC Balance: Account connected but balance may be in different format", Color.Yellow)
+                End If
             End If
 
         Catch ex As Exception
@@ -381,9 +400,10 @@ Public Class frmContangoMain
         End Try
     End Sub
 
+
     Private Sub HandlePortfolioUpdate(data As JObject)
         Try
-            ' Handle real-time portfolio updates from Deribit
+            ' Handle real-time portfolio updates with higher precision
             Dim totalEquity As Decimal = 0
             Dim availableFunds As Decimal = 0
             Dim totalPnL As Decimal = 0
@@ -400,11 +420,15 @@ Public Class frmContangoMain
                 Decimal.TryParse(data("available_funds").ToString(), availableFunds)
             End If
 
-            AppendLog($"Portfolio Update - Equity: {totalEquity:F4} BTC, P&L: {totalPnL:F4} BTC", Color.Blue)
+            ' Enhanced logging with 8 decimal places
+            If totalEquity > 0 OrElse totalPnL <> 0 Then
+                AppendLog($"Portfolio: Equity: {totalEquity:F8} BTC, P&L: {totalPnL:F8} BTC", Color.Blue)
+            Else
+                AppendLog($"Portfolio: No balance detected (may be in different currency)", Color.Yellow)
+            End If
 
-            ' Update position manager with current P&L if position is active
+            ' Update position manager if active
             If positionManager.IsPositionActive Then
-                ' Update unrealized P&L calculation
                 Me.Invoke(Sub() UpdatePositionDisplay())
             End If
 
@@ -412,6 +436,7 @@ Public Class frmContangoMain
             AppendLog($"Portfolio update error: {ex.Message}", Color.Red)
         End Try
     End Sub
+
 
     Private Async Function ExecuteRollingTrade() As Task
         Try
@@ -747,28 +772,51 @@ Public Class frmContangoMain
         Try
             Dim json As JObject = JObject.Parse(message)
 
-            ' Handle authentication responses
-            If json("result")?("access_token") IsNot Nothing Then
-                HandleAuthenticationResponse(json)
+            ' Handle account summary responses (BTC balance)
+            If json("id")?.ToString() = "account_summary" AndAlso json("result") IsNot Nothing Then
+                HandleAccountSummaryResponse(json)
             End If
 
-            ' Handle subscription confirmations
-            If json("method")?.ToString() = "subscription" Then
-                HandleSubscriptionMessage(json)
+            ' Handle get_instruments response
+            If json("id")?.ToString() = "get_instruments" AndAlso json("result") IsNot Nothing Then
+                HandleInstrumentsResponse(json)
             End If
 
-            ' Handle market data updates
-            If json("params")?("channel") IsNot Nothing Then
-                HandleMarketDataUpdate(json)
+            ' Debug: Log the message type for troubleshooting
+            If json("method") IsNot Nothing Then
+                Dim method = json("method").ToString()
+
+                ' Only log subscription confirmations once, not repeatedly
+                If method = "subscription" AndAlso json("params")?("channel") IsNot Nothing Then
+                    Dim channel = json("params")("channel").ToString()
+                    If Not channel.Contains("deribit_price_index") Then
+                        HandleSubscriptionMessage(json)
+                    End If
+
+                    ' Handle actual data updates (not just confirmations)
+                    If json("params")?("data") IsNot Nothing Then
+                        HandleMarketDataUpdate(json)
+                    End If
+                End If
+
+                ' Handle heartbeat requests
+                If method = "heartbeat" Then
+                    HandleHeartbeatRequest(json)
+                End If
             End If
 
-            ' Handle heartbeat/ping responses
-            If json("method")?.ToString() = "heartbeat" Then
-                HandleHeartbeatRequest(json)
+            ' Handle authentication responses (only if it has result with access_token)
+            If json("result") IsNot Nothing Then
+                If json("result").Type = JTokenType.Object Then
+                    Dim resultObj = CType(json("result"), JObject)
+                    If resultObj("access_token") IsNot Nothing Then
+                        HandleAuthenticationResponse(json)
+                    End If
+                End If
             End If
 
-            ' Handle account summary responses
-            If json("id")?.ToString() = "999" Then
+            ' Handle specific ID-based responses
+            If json("id") IsNot Nothing AndAlso json("id").ToString() = "999" Then
                 HandleAccountSummaryResponse(json)
             End If
 
@@ -776,8 +824,78 @@ Public Class frmContangoMain
 
         Catch ex As Exception
             AppendLog($"Error processing message: {ex.Message}", Color.Red)
+            ' Optionally log the raw message for debugging:
+            ' AppendLog($"Raw message: {message.Substring(0, Math.Min(200, message.Length))}", Color.Gray)
         End Try
     End Sub
+
+    Private Sub HandleInstrumentsResponse(json As JObject)
+        Try
+            Dim result = json("result")
+
+            If result IsNot Nothing AndAlso result.Type = JTokenType.Array Then
+                Dim contracts As JArray = CType(result, JArray)
+
+                ' Find the nearest expiry contract
+                Dim nearestContract As String = ""
+                Dim nearestExpiry As DateTime = DateTime.MaxValue
+
+                For Each contract In contracts
+                    Dim contractName = contract("instrument_name")?.ToString()
+                    Dim expiryStr = contract("expiration_timestamp")?.ToString()
+
+                    If contractName IsNot Nothing AndAlso contractName.StartsWith("BTC-") Then
+                        If Long.TryParse(expiryStr, Nothing) Then
+                            Dim expiry = DateTimeOffset.FromUnixTimeMilliseconds(CLng(expiryStr)).DateTime
+
+                            If expiry > DateTime.Now AndAlso expiry < nearestExpiry Then
+                                nearestExpiry = expiry
+                                nearestContract = contractName
+                            End If
+                        End If
+                    End If
+                Next
+
+                If Not String.IsNullOrEmpty(nearestContract) Then
+                    currentWeeklyContract = nearestContract
+                    AppendLog($"Found next contract: {nearestContract} expires {nearestExpiry:yyyy-MM-dd HH:mm}", Color.Green)
+
+                    ' CORRECTED: Subscribe to this contract
+                    SubscribeToContract(nearestContract).ContinueWith(
+                    Sub(task)
+                        If task.IsFaulted Then
+                            Me.Invoke(Sub() AppendLog($"Contract subscription failed: {task.Exception?.GetBaseException()?.Message}", Color.Red))
+                        End If
+                    End Sub)
+                Else
+                    AppendLog("No suitable BTC futures contracts found", Color.Red)
+                End If
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Error processing instruments: {ex.Message}", Color.Red)
+        End Try
+    End Sub
+
+
+    Private Async Function SubscribeToContract(contractName As String) As Task
+        Try
+            Dim contractSubscription As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", Guid.NewGuid().ToString()},
+            {"method", "public/subscribe"},
+            {"params", New JObject From {
+                {"channels", New JArray({$"ticker.{contractName}.raw"})}
+            }}
+        }
+
+            Await SendWebSocketMessage(contractSubscription.ToString())
+            AppendLog($"Subscribed to contract: {contractName}", Color.Green)
+
+        Catch ex As Exception
+            AppendLog($"Error subscribing to contract: {ex.Message}", Color.Red)
+        End Try
+    End Function
 
     Private Sub HandleAuthenticationResponse(json As JObject)
         Try
@@ -839,6 +957,33 @@ Public Class frmContangoMain
 
             AppendLog("Market data subscriptions active", Color.Green)
 
+            ' Subscribe to BTC-specific portfolio (enhanced)
+            Dim btcPortfolioSubscription As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", Guid.NewGuid().ToString()},
+            {"method", "private/subscribe"},
+            {"params", New JObject From {
+                {"channels", New JArray({"user.portfolio.btc", "user.changes.btc"})}
+            }}
+        }
+
+            Await SendWebSocketMessage(btcPortfolioSubscription.ToString())
+
+            ' Also request current account summary explicitly
+            Dim accountSummaryRequest As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", "account_summary"},
+            {"method", "private/get_account_summary"},
+            {"params", New JObject From {
+                {"currency", "BTC"}
+            }}
+        }
+
+            Await SendWebSocketMessage(accountSummaryRequest.ToString())
+
+            AppendLog("BTC portfolio subscriptions requested", Color.Blue)
+
+
         Catch ex As Exception
             AppendLog($"Subscription error: {ex.Message}", Color.Red)
         End Try
@@ -846,41 +991,14 @@ Public Class frmContangoMain
 
     Private Async Function SubscribeToWeeklyFutures() As Task
         Try
-            ' Get list of available instruments
-            Dim instrumentsRequest As New JObject From {
-            {"jsonrpc", "2.0"},
-            {"id", Guid.NewGuid().ToString()},
-            {"method", "public/get_instruments"},
-            {"params", New JObject From {
-                {"currency", "BTC"},
-                {"kind", "future"},
-                {"expired", False}
-            }}
-        }
-
-            Await SendWebSocketMessage(instrumentsRequest.ToString())
-
-            ' For now, subscribe to a known weekly pattern (will be dynamic later)
-            Dim currentWeekly = GetCurrentWeeklyContract()
-            If Not String.IsNullOrEmpty(currentWeekly) Then
-                Dim weeklySubscription As New JObject From {
-                {"jsonrpc", "2.0"},
-                {"id", Guid.NewGuid().ToString()},
-                {"method", "public/subscribe"},
-                {"params", New JObject From {
-                    {"channels", New JArray({$"ticker.{currentWeekly}.raw"})}
-                }}
-            }
-
-                Await SendWebSocketMessage(weeklySubscription.ToString())
-                currentWeeklyContract = currentWeekly
-                AppendLog($"Subscribed to weekly contract: {currentWeekly}", Color.Cyan)
-            End If
+            ' First, get available contracts dynamically
+            Await GetAvailableContracts()
 
         Catch ex As Exception
             AppendLog($"Weekly subscription error: {ex.Message}", Color.Red)
         End Try
     End Function
+
 
     Private Function GetCurrentWeeklyContract() As String
         Try
@@ -904,6 +1022,9 @@ Public Class frmContangoMain
         End Try
     End Function
 
+    Private recentBasisHistory As New Queue(Of BasisDataPoint)
+    Private Const MAX_HISTORY_SIZE As Integer = 1000 ' Keep last 1000 data points
+
     Private Sub HandleMarketDataUpdate(json As JObject)
         Try
             Dim channel As String = json("params")?("channel")?.ToString()
@@ -917,10 +1038,11 @@ Public Class frmContangoMain
                                       lblSpotPrice.Text = $"${currentBTCSpotPrice:N2}"
                                       lblSpotPrice.ForeColor = Color.Blue
                                   End Sub)
+                        'AppendLog($"BTC Spot updated: ${currentBTCSpotPrice:N2}", Color.Cyan)
                     End If
                 End If
 
-                ' Handle weekly futures price
+                ' Handle weekly futures price updates (look for BTC- contracts)
                 If channel.Contains("ticker.BTC-") AndAlso channel.Contains(".raw") Then
                     If Decimal.TryParse(data("last_price")?.ToString(), currentWeeklyFuturesPrice) Then
                         Me.Invoke(Sub()
@@ -928,13 +1050,32 @@ Public Class frmContangoMain
                                       lblWeeklyFuturesPrice.ForeColor = Color.Purple
                                   End Sub)
 
+                        'AppendLog($"Weekly Futures updated: ${currentWeeklyFuturesPrice:N2}", Color.Purple)
+
                         ' Update basis spread
                         UpdateBasisSpread()
 
-                        ' Save basis data to database
-                        contangoDatabase.SaveBasisData(currentBTCSpotPrice, currentWeeklyFuturesPrice,
-                                                 basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice),
-                                                 currentWeeklyContract)
+                        ' Save to database
+                        'contangoDatabase.SaveBasisData(currentBTCSpotPrice, currentWeeklyFuturesPrice,
+                        ' basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice),
+                        'currentWeeklyContract)
+
+                        ' Store in memory-only history (no database)
+                        If currentBTCSpotPrice > 0 AndAlso currentWeeklyFuturesPrice > 0 Then
+                            Dim basisPoint As New BasisDataPoint With {
+                                .Timestamp = DateTime.Now,
+                                .SpotPrice = currentBTCSpotPrice,
+                                .FuturesPrice = currentWeeklyFuturesPrice,
+                                .BasisSpread = basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice)
+                            }
+
+                            recentBasisHistory.Enqueue(basisPoint)
+
+                            ' Keep only recent history (limit memory usage)
+                            While recentBasisHistory.Count > MAX_HISTORY_SIZE
+                                recentBasisHistory.Dequeue()
+                            End While
+                        End If
                     End If
                 End If
 
@@ -946,14 +1087,54 @@ Public Class frmContangoMain
 
             lastBasisUpdate = DateTime.Now
 
-            If currentBTCSpotPrice > 0 And currentWeeklyFuturesPrice > 0 Then
-                ValidateMarketData()
-            End If
-
         Catch ex As Exception
             AppendLog($"Market data error: {ex.Message}", Color.Red)
         End Try
     End Sub
+
+    Private Function GetCurrentMonthlyContract() As String
+        Try
+            Dim nextMonth As DateTime = DateTime.Now.AddDays(30)
+            Dim lastFriday As DateTime = GetLastFridayOfMonth(nextMonth)
+
+            Return $"BTC-{lastFriday:ddMMMyy}".ToUpper()
+
+        Catch ex As Exception
+            Return "BTC-27DEC24" ' Fallback to quarterly
+        End Try
+    End Function
+
+    Private Function GetLastFridayOfMonth(targetMonth As DateTime) As DateTime
+        Dim lastDay = New DateTime(targetMonth.Year, targetMonth.Month, DateTime.DaysInMonth(targetMonth.Year, targetMonth.Month))
+
+        While lastDay.DayOfWeek <> DayOfWeek.Friday
+            lastDay = lastDay.AddDays(-1)
+        End While
+
+        Return lastDay
+    End Function
+
+    Private Async Function GetAvailableContracts() As Task
+        Try
+            Dim instrumentsRequest As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", "get_instruments"},
+            {"method", "public/get_instruments"},
+            {"params", New JObject From {
+                {"currency", "BTC"},
+                {"kind", "future"},
+                {"expired", False}
+            }}
+        }
+
+            Await SendWebSocketMessage(instrumentsRequest.ToString())
+            AppendLog("Requesting available BTC futures contracts", Color.Blue)
+
+        Catch ex As Exception
+            AppendLog($"Error requesting contracts: {ex.Message}", Color.Red)
+        End Try
+    End Function
+
 
     Private Sub UpdateBasisSpread()
         Try
@@ -1024,6 +1205,26 @@ Public Class frmContangoMain
                 ' TODO: Implement emergency spot close
                 Return False
             End If
+
+            If futuresSuccess Then
+                ' Calculate and save complete trade entry information
+                Dim tradeEntryBasisSpread As Decimal = basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice)
+                Dim annualizedReturn As Decimal = basisMonitor.GetAnnualizedBasisReturn(tradeEntryBasisSpread)
+
+                ' Save basis data for the trade
+                contangoDatabase.SaveBasisData(currentBTCSpotPrice, currentWeeklyFuturesPrice,
+                                 tradeEntryBasisSpread, currentWeeklyContract)
+
+                ' Enhanced logging with trade details
+                AppendLog($"TRADE EXECUTED: Entry basis {tradeEntryBasisSpread:P3} (est. {annualizedReturn:P1} annual)", Color.Green)
+                AppendLog($"Trade details saved: Spot ${currentBTCSpotPrice:N2}, Futures ${currentWeeklyFuturesPrice:N2}", Color.Blue)
+
+                ' Update the position manager with actual entry values
+                positionManager.OpenCashCarryPosition(currentBTCSpotPrice, currentWeeklyFuturesPrice,
+                                        positionSize, currentWeeklyContract,
+                                        DateTime.Now.AddDays(7))
+            End If
+
 
             AppendLog($"Cash-carry trade executed successfully at {currentBasis:P3} basis", Color.Green)
             Return True
@@ -1176,21 +1377,21 @@ Public Class frmContangoMain
             If paperTradingMode Then
                 ' Simulate spot purchase
                 paperPositions.Add(New PaperPosition With {
-                .EntryPrice = currentBTCSpotPrice,
-                .Size = positionSize,
-                .EntryTime = DateTime.Now,
-                .ContractName = "BTC-SPOT",
-                .PositionType = "SPOT"
-            })
+                    .EntryPrice = currentBTCSpotPrice,
+                    .Size = positionSize,
+                    .EntryTime = DateTime.Now,
+                    .ContractName = "BTC-SPOT",
+                    .PositionType = "SPOT"
+                })
 
                 ' Simulate futures short
                 paperPositions.Add(New PaperPosition With {
-                .EntryPrice = currentWeeklyFuturesPrice,
-                .Size = -positionSize,
-                .EntryTime = DateTime.Now,
-                .ContractName = currentWeeklyContract,
-                .PositionType = "FUTURES"
-            })
+                    .EntryPrice = currentWeeklyFuturesPrice,
+                    .Size = -positionSize,
+                    .EntryTime = DateTime.Now,
+                    .ContractName = currentWeeklyContract,
+                    .PositionType = "FUTURES"
+                })
 
                 paperBalance -= positionSize * currentBTCSpotPrice * 0.1 ' 10% margin used
 
@@ -1199,8 +1400,8 @@ Public Class frmContangoMain
 
                 Return True
             Else
-                ' Execute real trade (your existing implementation)
-                Return Await ExecuteRealCashCarryTrade(positionSize)
+                ' Execute real trade - CORRECTED METHOD NAME:
+                Return Await ExecuteCashCarryTrade(positionSize)
             End If
 
         Catch ex As Exception
@@ -1208,6 +1409,7 @@ Public Class frmContangoMain
             Return False
         End Try
     End Function
+
 
 #End Region
 

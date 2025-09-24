@@ -16,8 +16,8 @@ Public Class frmContangoMain
     ' Authentication
     Private refreshToken As String = Nothing
     Private refreshTokenExpiryTime As DateTime = DateTime.MinValue
-    Private Const ClientId As String = "YOUR_CLIENT_ID"
-    Private Const ClientSecret As String = "YOUR_CLIENT_SECRET"
+    Private Const ClientId As String = "YZCnDmWo"
+    Private Const ClientSecret As String = "EUKusjG9fnmMgsBmPl9TmHod5Otuan8YCnaMy1DvEgA"
 
     ' Core components
     Private rateLimiter As DeribitRateLimiter
@@ -46,6 +46,8 @@ Public Class frmContangoMain
 
     Private Async Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
+            PerformanceMonitor.StartTime = DateTime.Now
+
             ' Initialize components
             InitializeComponents()
 
@@ -261,13 +263,19 @@ Public Class frmContangoMain
             End If
 
             ' Update rate limit
-            lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/{50}"
+            'lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/{50}"
+            lblRateLimit.Text = $"Rate: {rateLimiter.RequestsInWindow}/50 ({PerformanceMonitor.MessagesPerSecond:F1}/sec)"
 
             ' Update last update time
             lblLastUpdate.Text = $"Last Update: {lastBasisUpdate:HH:mm:ss}"
 
+            lblUptime.Text = $"Uptime: {PerformanceMonitor.UptimePercent:F1}%"
+            ' lblLatency.Text = $"Latency: {performanceMonitor.AverageLatency.TotalMilliseconds:F0}ms"
+
             ' Update position display
             UpdatePositionDisplay()
+
+
 
         Catch ex As Exception
             ' Ignore UI update errors
@@ -568,6 +576,68 @@ Public Class frmContangoMain
 
         Catch ex As Exception
             AppendLog($"Error selling spot: {ex.Message}", Color.Red)
+            Return False
+        End Try
+    End Function
+
+    Private Sub ValidateMarketData()
+        Try
+            ' Validate BTC spot price is reasonable (between $10k-$200k)
+            If currentBTCSpotPrice < 10000 Or currentBTCSpotPrice > 200000 Then
+                AppendLog($"Warning: Unusual BTC spot price: ${currentBTCSpotPrice}", Color.Yellow)
+                Return
+            End If
+
+            ' Validate weekly futures price
+            If currentWeeklyFuturesPrice < 10000 Or currentWeeklyFuturesPrice > 200000 Then
+                AppendLog($"Warning: Unusual futures price: ${currentWeeklyFuturesPrice}", Color.Yellow)
+                Return
+            End If
+
+            ' Validate basis spread is reasonable (-5% to +10%)
+            Dim basisSpread As Decimal = basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice)
+
+            If Math.Abs(basisSpread) > 0.1 Then ' Greater than 10%
+                AppendLog($"Warning: Extreme basis spread: {basisSpread:P3}", Color.Red)
+            End If
+
+            ' Log successful validation
+            If basisSpread > 0.001 Then ' Positive basis > 0.1%
+                AppendLog($"Valid contango detected: {basisSpread:P3} ({basisMonitor.GetAnnualizedBasisReturn(basisSpread):P1} annualized)", Color.Cyan)
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Market data validation error: {ex.Message}", Color.Red)
+        End Try
+    End Sub
+
+    Private Function ValidatePositionSize(requestedSize As Decimal) As Boolean
+        Try
+            ' Maximum position size (e.g., 10% of paper balance)
+            Dim maxSize As Decimal = If(paperTradingMode, paperBalance * 0.1, 0.5) ' 0.5 BTC max for live
+
+            If requestedSize > maxSize Then
+                AppendLog($"Position size {requestedSize} exceeds maximum {maxSize}", Color.Red)
+                Return False
+            End If
+
+            ' Minimum position size
+            If requestedSize < 0.001 Then
+                AppendLog($"Position size {requestedSize} below minimum 0.001 BTC", Color.Red)
+                Return False
+            End If
+
+            ' Check basis spread threshold
+            Dim currentBasis = basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, currentWeeklyFuturesPrice)
+            If currentBasis < CDec(nudMinBasisThreshold.Value) Then
+                AppendLog($"Basis spread {currentBasis:P3} below threshold {nudMinBasisThreshold.Value:P3}", Color.Red)
+                Return False
+            End If
+
+            Return True
+
+        Catch ex As Exception
+            AppendLog($"Position validation error: {ex.Message}", Color.Red)
             Return False
         End Try
     End Function
@@ -876,6 +946,10 @@ Public Class frmContangoMain
 
             lastBasisUpdate = DateTime.Now
 
+            If currentBTCSpotPrice > 0 And currentWeeklyFuturesPrice > 0 Then
+                ValidateMarketData()
+            End If
+
         Catch ex As Exception
             AppendLog($"Market data error: {ex.Message}", Color.Red)
         End Try
@@ -1054,6 +1128,86 @@ Public Class frmContangoMain
             AppendLog($"Heartbeat error: {ex.Message}", Color.Red)
         End Try
     End Sub
+
+    ' Add this method to monitor connection quality
+    Private Sub UpdateConnectionHealth()
+        Try
+            If webSocketClient?.State = WebSocketState.Open Then
+                Dim timeSinceLastMessage = DateTime.Now.Subtract(lastMessageTime)
+
+                If timeSinceLastMessage.TotalSeconds < 5 Then
+                    lblConnectionStatus.Text = "Status: Excellent"
+                    lblConnectionStatus.ForeColor = Color.Green
+                ElseIf timeSinceLastMessage.TotalSeconds < 30 Then
+                    lblConnectionStatus.Text = "Status: Good"
+                    lblConnectionStatus.ForeColor = Color.Orange
+                Else
+                    lblConnectionStatus.Text = "Status: Poor Connection"
+                    lblConnectionStatus.ForeColor = Color.Red
+                End If
+            Else
+                lblConnectionStatus.Text = "Status: Disconnected"
+                lblConnectionStatus.ForeColor = Color.Red
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Connection health error: {ex.Message}", Color.Red)
+        End Try
+    End Sub
+
+
+#End Region
+
+#Region "Paper Trading Mode"
+    Private paperTradingMode As Boolean = True ' Start in paper mode
+    Private paperBalance As Decimal = 1D ' 1 BTC paper balance
+    Private paperPositions As New List(Of PaperPosition)
+
+    Public Class PaperPosition
+        Public Property EntryPrice As Decimal
+        Public Property Size As Decimal
+        Public Property EntryTime As DateTime
+        Public Property ContractName As String
+        Public Property PositionType As String ' "SPOT" or "FUTURES"
+    End Class
+
+    Private Async Function ExecutePaperTrade(positionSize As Decimal) As Task(Of Boolean)
+        Try
+            If paperTradingMode Then
+                ' Simulate spot purchase
+                paperPositions.Add(New PaperPosition With {
+                .EntryPrice = currentBTCSpotPrice,
+                .Size = positionSize,
+                .EntryTime = DateTime.Now,
+                .ContractName = "BTC-SPOT",
+                .PositionType = "SPOT"
+            })
+
+                ' Simulate futures short
+                paperPositions.Add(New PaperPosition With {
+                .EntryPrice = currentWeeklyFuturesPrice,
+                .Size = -positionSize,
+                .EntryTime = DateTime.Now,
+                .ContractName = currentWeeklyContract,
+                .PositionType = "FUTURES"
+            })
+
+                paperBalance -= positionSize * currentBTCSpotPrice * 0.1 ' 10% margin used
+
+                AppendLog($"PAPER TRADE: Cash-carry executed - {positionSize} BTC", Color.Blue)
+                AppendLog($"PAPER TRADE: Spot @ ${currentBTCSpotPrice}, Futures @ ${currentWeeklyFuturesPrice}", Color.Blue)
+
+                Return True
+            Else
+                ' Execute real trade (your existing implementation)
+                Return Await ExecuteRealCashCarryTrade(positionSize)
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Paper trade error: {ex.Message}", Color.Red)
+            Return False
+        End Try
+    End Function
 
 #End Region
 

@@ -245,13 +245,29 @@ Public Class frmContangoMain
         If positionManager.IsPositionActive Then
             lblPositionStatus.Text = positionManager.GetPositionSummary()
             lblUnrealizedPnL.Text = $"Unrealized P&L: ${positionManager.CalculateUnrealizedPnL(currentBTCSpotPrice, currentWeeklyFuturesPrice):F2}"
-            lblDaysToExpiry.Text = $"Days to Expiry: {positionManager.DaysToExpiry}"
+
+            ' Calculate hours to expiry in UTC
+            Dim hoursToExpiry As Double = 0
+
+            If positionManager.ExpiryDate > DateTime.MinValue Then
+                ' Convert expiry to UTC if needed and calculate hours remaining
+                Dim expiryUtc As DateTime = positionManager.ExpiryDate
+                If expiryUtc.Kind = DateTimeKind.Local Then
+                    expiryUtc = expiryUtc.ToUniversalTime()
+                End If
+
+                Dim timeToExpiry = expiryUtc.Subtract(DateTime.UtcNow)
+                hoursToExpiry = Math.Max(0, timeToExpiry.TotalHours)
+            End If
+
+            lblDaysToExpiry.Text = $"Hours to Expiry: {hoursToExpiry:F1}"
         Else
             lblPositionStatus.Text = "No active position"
             lblUnrealizedPnL.Text = "Unrealized P&L: $0.00"
-            lblDaysToExpiry.Text = "Days to Expiry: --"
+            lblDaysToExpiry.Text = "Hours to Expiry: --"
         End If
     End Sub
+
 
     Private Sub UpdateUI_Tick(sender As Object, e As EventArgs)
         Try
@@ -538,15 +554,72 @@ Public Class frmContangoMain
     End Function
 
     Private Function CalculateContractExpiry(contractName As String) As DateTime
-        ' Extract date from contract name (e.g., "BTC-04OCT25")
         Try
-            Dim datePart As String = contractName.Substring(4) ' Remove "BTC-"
-            ' This would need proper date parsing - for now return next Friday
-            Return GetNextFriday(DateTime.Now)
-        Catch
-            Return DateTime.Now.AddDays(7)
+            ' BTC weekly options expire Fridays at 08:00 UTC
+            ' Extract date from contract name (e.g., "BTC-26SEP25")
+            If contractName.Length >= 11 AndAlso contractName.StartsWith("BTC-") Then
+                Dim datePart As String = contractName.Substring(4, 7) ' "26SEP25"
+
+                ' Parse the date components
+                Dim dayStr = datePart.Substring(0, 2)    ' "26"
+                Dim monthStr = datePart.Substring(2, 3)  ' "SEP"  
+                Dim yearStr = datePart.Substring(5, 2)   ' "25"
+
+                ' Convert month abbreviation to number
+                Dim monthNum As Integer = GetMonthNumber(monthStr)
+
+                If Integer.TryParse(dayStr, Nothing) AndAlso Integer.TryParse(yearStr, Nothing) AndAlso monthNum > 0 Then
+                    Dim year As Integer = 2000 + Integer.Parse(yearStr)
+                    Dim day As Integer = Integer.Parse(dayStr)
+
+                    ' Create UTC expiry time (Friday 08:00 UTC)
+                    Return New DateTime(year, monthNum, day, 8, 0, 0, DateTimeKind.Utc)
+                End If
+            End If
+
+            ' Fallback: assume next Friday 08:00 UTC
+            Dim nextFriday = GetNextFriday(DateTime.UtcNow)
+            Return New DateTime(nextFriday.Year, nextFriday.Month, nextFriday.Day, 8, 0, 0, DateTimeKind.Utc)
+
+        Catch ex As Exception
+            ' Fallback calculation
+            Return DateTime.UtcNow.AddDays(7)
         End Try
     End Function
+
+    Private Function GetMonthNumber(monthAbbr As String) As Integer
+        Select Case monthAbbr.ToUpper()
+            Case "JAN" : Return 1
+            Case "FEB" : Return 2
+            Case "MAR" : Return 3
+            Case "APR" : Return 4
+            Case "MAY" : Return 5
+            Case "JUN" : Return 6
+            Case "JUL" : Return 7
+            Case "AUG" : Return 8
+            Case "SEP" : Return 9
+            Case "OCT" : Return 10
+            Case "NOV" : Return 11
+            Case "DEC" : Return 12
+            Case Else : Return 0
+        End Select
+    End Function
+
+    Private Sub DisplayCorrectTime()
+        ' Add this to your UI timer or position display update
+        Dim nowMalaysia As DateTime = DateTime.Now ' Your local time
+        Dim nowUtc As DateTime = DateTime.UtcNow   ' UTC time
+
+        AppendLog($"Local Time: {nowMalaysia:yyyy-MM-dd HH:mm:ss} (+8)", Color.Gray)
+        AppendLog($"UTC Time: {nowUtc:yyyy-MM-dd HH:mm:ss}", Color.Gray)
+
+        ' Calculate actual hours to BTC-26SEP25 expiry (Sep 26, 08:00 UTC)
+        Dim expiryUtc As New DateTime(2025, 9, 26, 8, 0, 0, DateTimeKind.Utc)
+        Dim hoursRemaining As Double = expiryUtc.Subtract(nowUtc).TotalHours
+
+        AppendLog($"Actual hours to BTC-26SEP25 expiry: {hoursRemaining:F1}", Color.Yellow)
+    End Sub
+
 
     Private Async Function GetContractPrice(contractName As String) As Task(Of Decimal)
         Try
@@ -1002,25 +1075,28 @@ Public Class frmContangoMain
 
     Private Function GetCurrentWeeklyContract() As String
         Try
-            ' Calculate next Friday's date
-            Dim today As DateTime = DateTime.Now
-            Dim daysUntilFriday As Integer = ((DayOfWeek.Friday - today.DayOfWeek + 7) Mod 7)
-            If daysUntilFriday = 0 AndAlso today.Hour >= 8 Then ' After 8 AM UTC on Friday
-                daysUntilFriday = 7 ' Next Friday
+            ' Use UTC for Deribit calculations (Deribit uses UTC)
+            Dim nowUtc As DateTime = DateTime.UtcNow
+            Dim daysUntilFriday As Integer = ((DayOfWeek.Friday - nowUtc.DayOfWeek + 7) Mod 7)
+
+            ' If it's already Friday after 08:00 UTC, get next Friday
+            If daysUntilFriday = 0 AndAlso nowUtc.Hour >= 8 Then
+                daysUntilFriday = 7
             End If
 
-            Dim nextFriday As DateTime = today.AddDays(daysUntilFriday)
+            Dim nextFriday As DateTime = nowUtc.AddDays(daysUntilFriday)
 
-            ' Format as BTC-DDMMMYY (e.g., BTC-04OCT25)
+            ' Format as BTC-DDMMMYY
             Dim contractName As String = $"BTC-{nextFriday:ddMMMyy}".ToUpper()
 
             Return contractName
 
         Catch ex As Exception
             AppendLog($"Error calculating weekly contract: {ex.Message}", Color.Red)
-            Return "BTC-27SEP25" ' Fallback
+            Return "BTC-27SEP25" ' Next week's contract
         End Try
     End Function
+
 
     Private recentBasisHistory As New Queue(Of BasisDataPoint)
     Private Const MAX_HISTORY_SIZE As Integer = 1000 ' Keep last 1000 data points
@@ -1361,7 +1437,7 @@ Public Class frmContangoMain
 
 #Region "Paper Trading Mode"
     Private paperTradingMode As Boolean = True ' Start in paper mode
-    Private paperBalance As Decimal = 1D ' 1 BTC paper balance
+    Private paperBalance As Decimal = 0.001D ' 1 BTC paper balance
     Private paperPositions As New List(Of PaperPosition)
 
     Public Class PaperPosition
@@ -1409,6 +1485,11 @@ Public Class frmContangoMain
             Return False
         End Try
     End Function
+
+    Private Sub Button1_Click(sender As Object, e As EventArgs) Handles Button1.Click
+        DisplayCorrectTime()
+
+    End Sub
 
 
 #End Region

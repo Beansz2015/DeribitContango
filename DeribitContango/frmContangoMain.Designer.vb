@@ -38,6 +38,7 @@ Partial Class frmContangoMain
         lblSpotPrice = New Label()
         Label1 = New Label()
         pnlPositionManagement = New Panel()
+        Button1 = New Button()
         lblBTCBalance = New Label()
         grpCurrentPosition = New GroupBox()
         btnClosePosition = New Button()
@@ -55,7 +56,6 @@ Partial Class frmContangoMain
         btnClearLogs = New Button()
         txtLogs = New RichTextBox()
         Label7 = New Label()
-        Button1 = New Button()
         pnlConnectionStatus.SuspendLayout()
         pnlMarketData.SuspendLayout()
         pnlPositionManagement.SuspendLayout()
@@ -262,6 +262,15 @@ Partial Class frmContangoMain
         pnlPositionManagement.Size = New Size(799, 684)
         pnlPositionManagement.TabIndex = 2
         ' 
+        ' Button1
+        ' 
+        Button1.Location = New Point(570, 154)
+        Button1.Name = "Button1"
+        Button1.Size = New Size(112, 34)
+        Button1.TabIndex = 4
+        Button1.Text = "Button1"
+        Button1.UseVisualStyleBackColor = True
+        ' 
         ' lblBTCBalance
         ' 
         lblBTCBalance.AutoSize = True
@@ -280,9 +289,9 @@ Partial Class frmContangoMain
         grpCurrentPosition.Controls.Add(lblDaysToExpiry)
         grpCurrentPosition.Controls.Add(lblUnrealizedPnL)
         grpCurrentPosition.Controls.Add(lblPositionStatus)
-        grpCurrentPosition.Location = New Point(10, 185)
+        grpCurrentPosition.Location = New Point(10, 194)
         grpCurrentPosition.Name = "grpCurrentPosition"
-        grpCurrentPosition.Size = New Size(400, 131)
+        grpCurrentPosition.Size = New Size(777, 131)
         grpCurrentPosition.TabIndex = 1
         grpCurrentPosition.TabStop = False
         grpCurrentPosition.Text = "Current Position"
@@ -291,7 +300,7 @@ Partial Class frmContangoMain
         ' 
         btnClosePosition.BackColor = Color.LightCoral
         btnClosePosition.Enabled = False
-        btnClosePosition.Location = New Point(226, 50)
+        btnClosePosition.Location = New Point(603, 50)
         btnClosePosition.Name = "btnClosePosition"
         btnClosePosition.Size = New Size(168, 75)
         btnClosePosition.TabIndex = 8
@@ -464,15 +473,6 @@ Partial Class frmContangoMain
         Label7.Size = New Size(200, 28)
         Label7.TabIndex = 7
         Label7.Text = "Trading Log"
-        ' 
-        ' Button1
-        ' 
-        Button1.Location = New Point(570, 154)
-        Button1.Name = "Button1"
-        Button1.Size = New Size(112, 34)
-        Button1.TabIndex = 4
-        Button1.Text = "Button1"
-        Button1.UseVisualStyleBackColor = True
         ' 
         ' frmContangoMain
         ' 

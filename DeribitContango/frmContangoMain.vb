@@ -360,10 +360,12 @@ Public Class frmContangoMain
             Dim result As JObject = json("result")
 
             If result IsNot Nothing Then
-                ' Extract account balance information
+                ' Extract BTC balance information with higher precision
                 Dim totalBalance As Decimal = 0
                 Dim availableBalance As Decimal = 0
+                Dim equity As Decimal = 0
 
+                ' Try multiple field names that Deribit might use
                 If result("total_balance") IsNot Nothing Then
                     Decimal.TryParse(result("total_balance").ToString(), totalBalance)
                 End If
@@ -372,16 +374,32 @@ Public Class frmContangoMain
                     Decimal.TryParse(result("available_balance").ToString(), availableBalance)
                 End If
 
-                AppendLog($"Account Summary - Total: {totalBalance:F6} BTC, Available: {availableBalance:F6} BTC", Color.Green)
+                If result("equity") IsNot Nothing Then
+                    Decimal.TryParse(result("equity").ToString(), equity)
+                End If
 
-                ' Update UI if needed (add labels for account balance if desired)
-                ' Me.Invoke(Sub() lblAccountBalance.Text = $"Balance: {totalBalance:F4} BTC")
+                If result("balance") IsNot Nothing Then
+                    Decimal.TryParse(result("balance").ToString(), totalBalance)
+                End If
+
+                ' Use the highest precision value available
+                Dim displayBalance As Decimal = Math.Max(Math.Max(totalBalance, availableBalance), equity)
+
+                If displayBalance > 0 Then
+                    AppendLog($"BTC Balance: {displayBalance:F8} BTC (${displayBalance * currentBTCSpotPrice:F2})", Color.Green)
+
+                    ' Update UI if you want to show balance
+                    Me.Invoke(Sub() lblBTCBalance.Text = $"Balance: {displayBalance:F8} BTC")
+                Else
+                    AppendLog("BTC Balance: Account connected but balance may be in different format", Color.Yellow)
+                End If
             End If
 
         Catch ex As Exception
             AppendLog($"Account summary error: {ex.Message}", Color.Red)
         End Try
     End Sub
+
 
     Private Sub HandlePortfolioUpdate(data As JObject)
         Try
@@ -754,6 +772,11 @@ Public Class frmContangoMain
         Try
             Dim json As JObject = JObject.Parse(message)
 
+            ' Handle account summary responses (BTC balance)
+            If json("id")?.ToString() = "account_summary" AndAlso json("result") IsNot Nothing Then
+                HandleAccountSummaryResponse(json)
+            End If
+
             ' Handle get_instruments response
             If json("id")?.ToString() = "get_instruments" AndAlso json("result") IsNot Nothing Then
                 HandleInstrumentsResponse(json)
@@ -933,6 +956,33 @@ Public Class frmContangoMain
             Await SendWebSocketMessage(portfolioSubscription.ToString())
 
             AppendLog("Market data subscriptions active", Color.Green)
+
+            ' Subscribe to BTC-specific portfolio (enhanced)
+            Dim btcPortfolioSubscription As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", Guid.NewGuid().ToString()},
+            {"method", "private/subscribe"},
+            {"params", New JObject From {
+                {"channels", New JArray({"user.portfolio.btc", "user.changes.btc"})}
+            }}
+        }
+
+            Await SendWebSocketMessage(btcPortfolioSubscription.ToString())
+
+            ' Also request current account summary explicitly
+            Dim accountSummaryRequest As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", "account_summary"},
+            {"method", "private/get_account_summary"},
+            {"params", New JObject From {
+                {"currency", "BTC"}
+            }}
+        }
+
+            Await SendWebSocketMessage(accountSummaryRequest.ToString())
+
+            AppendLog("BTC portfolio subscriptions requested", Color.Blue)
+
 
         Catch ex As Exception
             AppendLog($"Subscription error: {ex.Message}", Color.Red)

@@ -23,6 +23,7 @@ Partial Class frmContangoMain
     <System.Diagnostics.DebuggerStepThrough()> _
     Private Sub InitializeComponent()
         pnlConnectionStatus = New Panel()
+        lblLatency = New Label()
         lblUptime = New Label()
         lblLastUpdate = New Label()
         lblRateLimit = New Label()
@@ -37,6 +38,7 @@ Partial Class frmContangoMain
         lblSpotPrice = New Label()
         Label1 = New Label()
         pnlPositionManagement = New Panel()
+        lblBTCBalance = New Label()
         grpCurrentPosition = New GroupBox()
         btnClosePosition = New Button()
         lblDaysToExpiry = New Label()
@@ -53,7 +55,6 @@ Partial Class frmContangoMain
         btnClearLogs = New Button()
         txtLogs = New RichTextBox()
         Label7 = New Label()
-        lblLatency = New Label()
         pnlConnectionStatus.SuspendLayout()
         pnlMarketData.SuspendLayout()
         pnlPositionManagement.SuspendLayout()
@@ -77,6 +78,17 @@ Partial Class frmContangoMain
         pnlConnectionStatus.Name = "pnlConnectionStatus"
         pnlConnectionStatus.Size = New Size(1178, 60)
         pnlConnectionStatus.TabIndex = 0
+        ' 
+        ' lblLatency
+        ' 
+        lblLatency.AutoSize = True
+        lblLatency.ForeColor = SystemColors.HotTrack
+        lblLatency.Location = New Point(745, 15)
+        lblLatency.MinimumSize = New Size(200, 25)
+        lblLatency.Name = "lblLatency"
+        lblLatency.Size = New Size(200, 25)
+        lblLatency.TabIndex = 4
+        lblLatency.Text = "Latency:"
         ' 
         ' lblUptime
         ' 
@@ -239,6 +251,7 @@ Partial Class frmContangoMain
         ' pnlPositionManagement
         ' 
         pnlPositionManagement.BackColor = Color.White
+        pnlPositionManagement.Controls.Add(lblBTCBalance)
         pnlPositionManagement.Controls.Add(grpCurrentPosition)
         pnlPositionManagement.Controls.Add(grpPositionEntry)
         pnlPositionManagement.Dock = DockStyle.Fill
@@ -246,6 +259,18 @@ Partial Class frmContangoMain
         pnlPositionManagement.Name = "pnlPositionManagement"
         pnlPositionManagement.Size = New Size(828, 684)
         pnlPositionManagement.TabIndex = 2
+        ' 
+        ' lblBTCBalance
+        ' 
+        lblBTCBalance.AutoSize = True
+        lblBTCBalance.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblBTCBalance.ForeColor = SystemColors.Desktop
+        lblBTCBalance.Location = New Point(461, 23)
+        lblBTCBalance.MinimumSize = New Size(200, 25)
+        lblBTCBalance.Name = "lblBTCBalance"
+        lblBTCBalance.Size = New Size(200, 25)
+        lblBTCBalance.TabIndex = 11
+        lblBTCBalance.Text = "BTC Balance:"
         ' 
         ' grpCurrentPosition
         ' 
@@ -438,17 +463,6 @@ Partial Class frmContangoMain
         Label7.TabIndex = 7
         Label7.Text = "Trading Log"
         ' 
-        ' lblLatency
-        ' 
-        lblLatency.AutoSize = True
-        lblLatency.ForeColor = SystemColors.HotTrack
-        lblLatency.Location = New Point(745, 15)
-        lblLatency.MinimumSize = New Size(200, 25)
-        lblLatency.Name = "lblLatency"
-        lblLatency.Size = New Size(200, 25)
-        lblLatency.TabIndex = 4
-        lblLatency.Text = "Latency:"
-        ' 
         ' frmContangoMain
         ' 
         AutoScaleDimensions = New SizeF(10F, 25F)
@@ -467,6 +481,7 @@ Partial Class frmContangoMain
         pnlMarketData.ResumeLayout(False)
         pnlMarketData.PerformLayout()
         pnlPositionManagement.ResumeLayout(False)
+        pnlPositionManagement.PerformLayout()
         grpCurrentPosition.ResumeLayout(False)
         grpCurrentPosition.PerformLayout()
         grpPositionEntry.ResumeLayout(False)
@@ -510,4 +525,5 @@ Partial Class frmContangoMain
     Friend WithEvents Label7 As Label
     Friend WithEvents lblUptime As Label
     Friend WithEvents lblLatency As Label
+    Friend WithEvents lblBTCBalance As Label
 End Class

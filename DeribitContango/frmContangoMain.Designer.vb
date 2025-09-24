@@ -55,6 +55,7 @@ Partial Class frmContangoMain
         btnClearLogs = New Button()
         txtLogs = New RichTextBox()
         Label7 = New Label()
+        Button1 = New Button()
         pnlConnectionStatus.SuspendLayout()
         pnlMarketData.SuspendLayout()
         pnlPositionManagement.SuspendLayout()
@@ -76,7 +77,7 @@ Partial Class frmContangoMain
         pnlConnectionStatus.Dock = DockStyle.Top
         pnlConnectionStatus.Location = New Point(0, 0)
         pnlConnectionStatus.Name = "pnlConnectionStatus"
-        pnlConnectionStatus.Size = New Size(1178, 60)
+        pnlConnectionStatus.Size = New Size(1149, 60)
         pnlConnectionStatus.TabIndex = 0
         ' 
         ' lblLatency
@@ -251,13 +252,14 @@ Partial Class frmContangoMain
         ' pnlPositionManagement
         ' 
         pnlPositionManagement.BackColor = Color.White
+        pnlPositionManagement.Controls.Add(Button1)
         pnlPositionManagement.Controls.Add(lblBTCBalance)
         pnlPositionManagement.Controls.Add(grpCurrentPosition)
         pnlPositionManagement.Controls.Add(grpPositionEntry)
         pnlPositionManagement.Dock = DockStyle.Fill
         pnlPositionManagement.Location = New Point(350, 60)
         pnlPositionManagement.Name = "pnlPositionManagement"
-        pnlPositionManagement.Size = New Size(828, 684)
+        pnlPositionManagement.Size = New Size(799, 684)
         pnlPositionManagement.TabIndex = 2
         ' 
         ' lblBTCBalance
@@ -278,9 +280,9 @@ Partial Class frmContangoMain
         grpCurrentPosition.Controls.Add(lblDaysToExpiry)
         grpCurrentPosition.Controls.Add(lblUnrealizedPnL)
         grpCurrentPosition.Controls.Add(lblPositionStatus)
-        grpCurrentPosition.Location = New Point(10, 140)
+        grpCurrentPosition.Location = New Point(10, 185)
         grpCurrentPosition.Name = "grpCurrentPosition"
-        grpCurrentPosition.Size = New Size(400, 100)
+        grpCurrentPosition.Size = New Size(400, 131)
         grpCurrentPosition.TabIndex = 1
         grpCurrentPosition.TabStop = False
         grpCurrentPosition.Text = "Current Position"
@@ -289,9 +291,9 @@ Partial Class frmContangoMain
         ' 
         btnClosePosition.BackColor = Color.LightCoral
         btnClosePosition.Enabled = False
-        btnClosePosition.Location = New Point(206, 20)
+        btnClosePosition.Location = New Point(226, 50)
         btnClosePosition.Name = "btnClosePosition"
-        btnClosePosition.Size = New Size(182, 30)
+        btnClosePosition.Size = New Size(168, 75)
         btnClosePosition.TabIndex = 8
         btnClosePosition.Text = "Close Position"
         btnClosePosition.UseVisualStyleBackColor = False
@@ -301,7 +303,7 @@ Partial Class frmContangoMain
         lblDaysToExpiry.AutoSize = True
         lblDaysToExpiry.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
         lblDaysToExpiry.ForeColor = SystemColors.Desktop
-        lblDaysToExpiry.Location = New Point(200, 50)
+        lblDaysToExpiry.Location = New Point(15, 75)
         lblDaysToExpiry.MinimumSize = New Size(200, 25)
         lblDaysToExpiry.Name = "lblDaysToExpiry"
         lblDaysToExpiry.Size = New Size(200, 25)
@@ -342,7 +344,7 @@ Partial Class frmContangoMain
         grpPositionEntry.Controls.Add(Label5)
         grpPositionEntry.Location = New Point(10, 10)
         grpPositionEntry.Name = "grpPositionEntry"
-        grpPositionEntry.Size = New Size(400, 120)
+        grpPositionEntry.Size = New Size(400, 178)
         grpPositionEntry.TabIndex = 0
         grpPositionEntry.TabStop = False
         grpPositionEntry.Text = "Position Entry"
@@ -351,9 +353,9 @@ Partial Class frmContangoMain
         ' 
         btnRollPosition.BackColor = Color.LightBlue
         btnRollPosition.Enabled = False
-        btnRollPosition.Location = New Point(190, 83)
+        btnRollPosition.Location = New Point(192, 92)
         btnRollPosition.Name = "btnRollPosition"
-        btnRollPosition.Size = New Size(120, 35)
+        btnRollPosition.Size = New Size(173, 80)
         btnRollPosition.TabIndex = 10
         btnRollPosition.Text = "Roll Position"
         btnRollPosition.UseVisualStyleBackColor = False
@@ -362,20 +364,20 @@ Partial Class frmContangoMain
         ' 
         btnExecuteCashCarry.BackColor = Color.LightGreen
         btnExecuteCashCarry.Enabled = False
-        btnExecuteCashCarry.Location = New Point(15, 83)
+        btnExecuteCashCarry.Location = New Point(15, 92)
         btnExecuteCashCarry.Name = "btnExecuteCashCarry"
-        btnExecuteCashCarry.Size = New Size(171, 35)
+        btnExecuteCashCarry.Size = New Size(171, 77)
         btnExecuteCashCarry.TabIndex = 9
         btnExecuteCashCarry.Text = "Execute Cash-Carry"
         btnExecuteCashCarry.UseVisualStyleBackColor = False
         ' 
         ' nudMinBasisThreshold
         ' 
-        nudMinBasisThreshold.DecimalPlaces = 3
-        nudMinBasisThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 196608})
+        nudMinBasisThreshold.DecimalPlaces = 4
+        nudMinBasisThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
         nudMinBasisThreshold.Location = New Point(192, 52)
         nudMinBasisThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
-        nudMinBasisThreshold.Minimum = New Decimal(New Integer() {1, 0, 0, 196608})
+        nudMinBasisThreshold.Minimum = New Decimal(New Integer() {1, 0, 0, 262144})
         nudMinBasisThreshold.Name = "nudMinBasisThreshold"
         nudMinBasisThreshold.Size = New Size(100, 31)
         nudMinBasisThreshold.TabIndex = 8
@@ -426,7 +428,7 @@ Partial Class frmContangoMain
         pnlTradingLog.ForeColor = Color.Black
         pnlTradingLog.Location = New Point(350, 494)
         pnlTradingLog.Name = "pnlTradingLog"
-        pnlTradingLog.Size = New Size(828, 250)
+        pnlTradingLog.Size = New Size(799, 250)
         pnlTradingLog.TabIndex = 3
         ' 
         ' btnClearLogs
@@ -463,12 +465,21 @@ Partial Class frmContangoMain
         Label7.TabIndex = 7
         Label7.Text = "Trading Log"
         ' 
+        ' Button1
+        ' 
+        Button1.Location = New Point(570, 154)
+        Button1.Name = "Button1"
+        Button1.Size = New Size(112, 34)
+        Button1.TabIndex = 4
+        Button1.Text = "Button1"
+        Button1.UseVisualStyleBackColor = True
+        ' 
         ' frmContangoMain
         ' 
         AutoScaleDimensions = New SizeF(10F, 25F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = SystemColors.ActiveCaptionText
-        ClientSize = New Size(1178, 744)
+        ClientSize = New Size(1149, 744)
         Controls.Add(pnlTradingLog)
         Controls.Add(pnlPositionManagement)
         Controls.Add(pnlMarketData)
@@ -526,4 +537,5 @@ Partial Class frmContangoMain
     Friend WithEvents lblUptime As Label
     Friend WithEvents lblLatency As Label
     Friend WithEvents lblBTCBalance As Label
+    Friend WithEvents Button1 As Button
 End Class

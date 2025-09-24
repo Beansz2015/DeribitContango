@@ -327,22 +327,251 @@ Public Class frmContangoMain
     ' Additional WebSocket and trading methods will be added in Phase 6
     ' Placeholder methods for now:
 
-    Private Async Function ExecuteCashCarryTrade(positionSize As Decimal) As Task(Of Boolean)
-        ' Implementation in Phase 6
-        Await Task.Delay(1000) ' Simulate execution time
-        Return True
-    End Function
+    Private Sub HandleSubscriptionMessage(json As JObject)
+        Try
+            Dim channel As String = json("params")?("channel")?.ToString()
+
+            If Not String.IsNullOrEmpty(channel) Then
+                AppendLog($"Subscription confirmed: {channel}", Color.Cyan)
+
+                ' Track active subscriptions
+                If Not availableWeeklyContracts.Contains(channel) Then
+                    availableWeeklyContracts.Add(channel)
+                End If
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Subscription message error: {ex.Message}", Color.Red)
+        End Try
+    End Sub
+
+    Private Sub HandleAccountSummaryResponse(json As JObject)
+        Try
+            Dim result As JObject = json("result")
+
+            If result IsNot Nothing Then
+                ' Extract account balance information
+                Dim totalBalance As Decimal = 0
+                Dim availableBalance As Decimal = 0
+
+                If result("total_balance") IsNot Nothing Then
+                    Decimal.TryParse(result("total_balance").ToString(), totalBalance)
+                End If
+
+                If result("available_balance") IsNot Nothing Then
+                    Decimal.TryParse(result("available_balance").ToString(), availableBalance)
+                End If
+
+                AppendLog($"Account Summary - Total: {totalBalance:F4} BTC, Available: {availableBalance:F4} BTC", Color.Green)
+
+                ' Update UI if needed (add labels for account balance if desired)
+                ' Me.Invoke(Sub() lblAccountBalance.Text = $"Balance: {totalBalance:F4} BTC")
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Account summary error: {ex.Message}", Color.Red)
+        End Try
+    End Sub
+
+    Private Sub HandlePortfolioUpdate(data As JObject)
+        Try
+            ' Handle real-time portfolio updates from Deribit
+            Dim totalEquity As Decimal = 0
+            Dim availableFunds As Decimal = 0
+            Dim totalPnL As Decimal = 0
+
+            If data("total_pl") IsNot Nothing Then
+                Decimal.TryParse(data("total_pl").ToString(), totalPnL)
+            End If
+
+            If data("equity") IsNot Nothing Then
+                Decimal.TryParse(data("equity").ToString(), totalEquity)
+            End If
+
+            If data("available_funds") IsNot Nothing Then
+                Decimal.TryParse(data("available_funds").ToString(), availableFunds)
+            End If
+
+            AppendLog($"Portfolio Update - Equity: {totalEquity:F4} BTC, P&L: {totalPnL:F4} BTC", Color.Blue)
+
+            ' Update position manager with current P&L if position is active
+            If positionManager.IsPositionActive Then
+                ' Update unrealized P&L calculation
+                Me.Invoke(Sub() UpdatePositionDisplay())
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Portfolio update error: {ex.Message}", Color.Red)
+        End Try
+    End Sub
 
     Private Async Function ExecuteRollingTrade() As Task
-        ' Implementation in Phase 6
-        Await Task.Delay(1000)
+        Try
+            AppendLog("Executing rolling trade...", Color.Blue)
+
+            ' Get next weekly contract
+            Dim nextWeeklyContract As String = GetNextWeeklyContract()
+
+            If String.IsNullOrEmpty(nextWeeklyContract) Then
+                AppendLog("Cannot determine next weekly contract", Color.Red)
+                Return
+            End If
+
+            ' Check if rolling is profitable
+            Dim nextWeeklyPrice As Decimal = Await GetContractPrice(nextWeeklyContract)
+
+            If nextWeeklyPrice <= 0 Then
+                AppendLog("Cannot get next weekly price", Color.Red)
+                Return
+            End If
+
+            Dim nextBasisSpread As Decimal = basisMonitor.CalculateBasisSpread(currentBTCSpotPrice, nextWeeklyPrice)
+
+            If nextBasisSpread < CDec(nudMinBasisThreshold.Value) Then
+                AppendLog($"Next weekly basis {nextBasisSpread:P3} below threshold", Color.Yellow)
+                Return
+            End If
+
+            ' Close current futures position
+            Dim closeSuccess As Boolean = Await CloseFuturesPosition(currentWeeklyContract)
+
+            If closeSuccess Then
+                ' Open new futures position
+                Dim openSuccess As Boolean = Await ExecuteFuturesShort(positionManager.PositionSize, nextWeeklyContract)
+
+                If openSuccess Then
+                    ' Update position manager
+                    positionManager.ContractName = nextWeeklyContract
+                    positionManager.EntryFuturesPrice = nextWeeklyPrice
+                    positionManager.ExpiryDate = CalculateContractExpiry(nextWeeklyContract)
+
+                    currentWeeklyContract = nextWeeklyContract
+
+                    AppendLog($"Position rolled to {nextWeeklyContract} at {nextBasisSpread:P3} basis", Color.Green)
+                Else
+                    AppendLog("Failed to open new futures position", Color.Red)
+                End If
+            Else
+                AppendLog("Failed to close current futures position", Color.Red)
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Rolling trade error: {ex.Message}", Color.Red)
+        End Try
     End Function
 
     Private Async Function CloseContangoPosition() As Task(Of Boolean)
-        ' Implementation in Phase 6
-        Await Task.Delay(1000)
-        Return True
+        Try
+            AppendLog("Closing contango position...", Color.Blue)
+
+            ' Close futures position
+            Dim futuresCloseSuccess As Boolean = Await CloseFuturesPosition(currentWeeklyContract)
+
+            ' Close spot position (sell BTC)
+            Dim spotCloseSuccess As Boolean = Await ExecuteSpotSale(positionManager.PositionSize)
+
+            If futuresCloseSuccess AndAlso spotCloseSuccess Then
+                AppendLog("All positions closed successfully", Color.Green)
+                Return True
+            Else
+                AppendLog("Warning: Some positions may not have closed properly", Color.Orange)
+                Return False
+            End If
+
+        Catch ex As Exception
+            AppendLog($"Close position error: {ex.Message}", Color.Red)
+            Return False
+        End Try
     End Function
+
+    Private Function GetNextWeeklyContract() As String
+        Try
+            Dim currentFriday As DateTime = GetNextFriday(DateTime.Now)
+            Dim nextFriday As DateTime = currentFriday.AddDays(7)
+
+            Return $"BTC-{nextFriday:ddMMMyy}".ToUpper()
+
+        Catch ex As Exception
+            Return ""
+        End Try
+    End Function
+
+    Private Function GetNextFriday(fromDate As DateTime) As DateTime
+        Dim daysUntilFriday As Integer = ((DayOfWeek.Friday - fromDate.DayOfWeek + 7) Mod 7)
+        If daysUntilFriday = 0 AndAlso fromDate.Hour >= 8 Then
+            daysUntilFriday = 7
+        End If
+        Return fromDate.AddDays(daysUntilFriday)
+    End Function
+
+    Private Function CalculateContractExpiry(contractName As String) As DateTime
+        ' Extract date from contract name (e.g., "BTC-04OCT25")
+        Try
+            Dim datePart As String = contractName.Substring(4) ' Remove "BTC-"
+            ' This would need proper date parsing - for now return next Friday
+            Return GetNextFriday(DateTime.Now)
+        Catch
+            Return DateTime.Now.AddDays(7)
+        End Try
+    End Function
+
+    Private Async Function GetContractPrice(contractName As String) As Task(Of Decimal)
+        Try
+            ' Request current price for specific contract
+            Dim priceRequest As New JObject From {
+            {"jsonrpc", "2.0"},
+            {"id", Guid.NewGuid().ToString()},
+            {"method", "public/get_ticker"},
+            {"params", New JObject From {
+                {"instrument_name", contractName}
+            }}
+        }
+
+            Await SendWebSocketMessage(priceRequest.ToString())
+
+            ' For now, return current futures price as placeholder
+            ' In production, you'd wait for the response
+            Await Task.Delay(1000)
+            Return currentWeeklyFuturesPrice
+
+        Catch ex As Exception
+            AppendLog($"Error getting contract price: {ex.Message}", Color.Red)
+            Return 0
+        End Try
+    End Function
+
+    Private Async Function CloseFuturesPosition(contractName As String) As Task(Of Boolean)
+        Try
+            ' Implementation for closing futures position
+            AppendLog($"Closing futures position on {contractName}", Color.Blue)
+
+            ' TODO: Implement actual Deribit close order
+            Await Task.Delay(1000) ' Placeholder
+
+            Return True
+
+        Catch ex As Exception
+            AppendLog($"Error closing futures: {ex.Message}", Color.Red)
+            Return False
+        End Try
+    End Function
+
+    Private Async Function ExecuteSpotSale(amount As Decimal) As Task(Of Boolean)
+        Try
+            ' Implementation for selling BTC spot
+            AppendLog($"Selling {amount} BTC at spot", Color.Blue)
+
+            ' TODO: Implement actual Deribit sell order
+            Await Task.Delay(1000) ' Placeholder
+
+            Return True
+
+        Catch ex As Exception
+            AppendLog($"Error selling spot: {ex.Message}", Color.Red)
+            Return False
+        End Try
+    End Function
+
 
 #End Region
 
@@ -392,12 +621,6 @@ Public Class frmContangoMain
             End Sub)
         End If
     End Sub
-
-
-    Private Async Function SendKeepAlive() As Task
-        ' Implementation will be added in Phase 6
-        Await Task.Delay(100)
-    End Function
 
     Private Async Function SendWebSocketMessage(message As String) As Task
         Try

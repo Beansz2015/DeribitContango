@@ -112,7 +112,9 @@ Public Class frmContangoMain
 
             If success Then
                 isContangoPositionActive = True
-                positionManager.OpenCashCarryPosition(currentBTCSpotPrice, currentWeeklyFuturesPrice, positionSize, currentWeeklyContract, DateTime.Now.AddDays(7))
+                ' CORRECT:
+                Dim calculatedExpiry As DateTime = CalculateContractExpiry(currentWeeklyContract)
+                positionManager.OpenCashCarryPosition(currentBTCSpotPrice, currentWeeklyFuturesPrice, positionSize, currentWeeklyContract, calculatedExpiry)
 
                 ' Update UI
                 btnRollPosition.Enabled = True

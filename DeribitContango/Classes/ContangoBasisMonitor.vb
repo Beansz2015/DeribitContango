@@ -131,29 +131,65 @@ Public Class ContangoBasisMonitor
             Return New BasisStatistics() ' Empty stats
         End If
 
-        Dim recent = basisHistory.TakeLast(100).Select(Function(x) x.BasisSpread).ToList()
+        ' Manual approach instead of LINQ TakeLast()
+        Dim recent As New List(Of Decimal)
+        Dim startIndex As Integer = Math.Max(0, basisHistory.Count - 100)
+
+        For i As Integer = startIndex To basisHistory.Count - 1
+            recent.Add(basisHistory(i).BasisSpread)
+        Next
 
         Return New BasisStatistics With {
-            .Count = recent.Count,
-            .Average = recent.Average(),
-            .Minimum = recent.Min(),
-            .Maximum = recent.Max(),
-            .StandardDeviation = CalculateStandardDeviation(recent),
-            .MedianSpread = CalculateMedian(recent),
-            .CurrentPercentile = CalculatePercentile(recent, recent.Last())
-        }
+        .Count = recent.Count,
+        .Average = CalculateAverage(recent),
+        .Minimum = CalculateMinimum(recent),
+        .Maximum = CalculateMaximum(recent),
+        .StandardDeviation = CalculateStandardDeviation(recent),
+        .MedianSpread = CalculateMedian(recent),
+        .CurrentPercentile = CalculatePercentile(recent, If(recent.Count > 0, recent(recent.Count - 1), 0))
+    }
     End Function
 
-    Private Function CalculateStandardDeviation(values As List(Of Decimal)) As Decimal
-        If values.Count < 2 Then Return 0
+    Private Function CalculateAverage(values As List(Of Decimal)) As Decimal
+        If values.Count = 0 Then Return 0
 
-        Dim mean As Decimal = values.Average()
-        Dim sumSquareDiffs As Decimal = values.Sum(Function(x) (x - mean) * (x - mean))
-        Return CDec(Math.Sqrt(CDbl(sumSquareDiffs / (values.Count - 1))))
+        Dim total As Decimal = 0
+        For Each value In values
+            total += value
+        Next
+
+        Return total / values.Count
+    End Function
+
+    Private Function CalculateMinimum(values As List(Of Decimal)) As Decimal
+        If values.Count = 0 Then Return 0
+
+        Dim minimum As Decimal = values(0)
+        For Each value In values
+            If value < minimum Then minimum = value
+        Next
+
+        Return minimum
+    End Function
+
+    Private Function CalculateMaximum(values As List(Of Decimal)) As Decimal
+        If values.Count = 0 Then Return 0
+
+        Dim maximum As Decimal = values(0)
+        For Each value In values
+            If value > maximum Then maximum = value
+        Next
+
+        Return maximum
     End Function
 
     Private Function CalculateMedian(values As List(Of Decimal)) As Decimal
-        Dim sorted = values.OrderBy(Function(x) x).ToList()
+        If values.Count = 0 Then Return 0
+
+        ' Manual sort instead of LINQ OrderBy()
+        Dim sorted As New List(Of Decimal)(values)
+        sorted.Sort()
+
         Dim mid = sorted.Count \ 2
 
         If sorted.Count Mod 2 = 0 Then
@@ -164,10 +200,27 @@ Public Class ContangoBasisMonitor
     End Function
 
     Private Function CalculatePercentile(values As List(Of Decimal), targetValue As Decimal) As Integer
-        Dim belowCount = values.Count(Function(x) x < targetValue)
+        If values.Count = 0 Then Return 0
+
+        Dim belowCount As Integer = 0
+
+        ' Manual count instead of LINQ Count()
+        For Each value In values
+            If value < targetValue Then
+                belowCount += 1
+            End If
+        Next
+
         Return CInt((belowCount / values.Count) * 100)
     End Function
 
+    Private Function CalculateStandardDeviation(values As List(Of Decimal)) As Decimal
+        If values.Count < 2 Then Return 0
+
+        Dim mean As Decimal = values.Average()
+        Dim sumSquareDiffs As Decimal = values.Sum(Function(x) (x - mean) * (x - mean))
+        Return CDec(Math.Sqrt(CDbl(sumSquareDiffs / (values.Count - 1))))
+    End Function
 
 End Class
 

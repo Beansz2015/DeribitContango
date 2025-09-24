@@ -435,7 +435,7 @@ Partial Class frmContangoMain
         Controls.Add(pnlConnectionStatus)
         Name = "frmContangoMain"
         StartPosition = FormStartPosition.CenterScreen
-        Text = "DeribitContango - BTC Basis Trading"
+        Text = "DeribitContango v0.2 - BTC Basis Trading"
         pnlConnectionStatus.ResumeLayout(False)
         pnlConnectionStatus.PerformLayout()
         pnlMarketData.ResumeLayout(False)

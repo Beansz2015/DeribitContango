@@ -43,6 +43,22 @@ Public Class frmContangoMain
 
 #End Region
 
+#Region "Connection Management & Resilience"
+
+    Private reconnectionTimer As System.Timers.Timer
+    Private connectionHealthTimer As System.Timers.Timer
+    Private isReconnecting As Boolean = False
+    Private reconnectAttempts As Integer = 0
+    Private maxReconnectAttempts As Integer = 50
+    Private baseReconnectDelay As Integer = 2000 ' Start with 2 seconds
+    Private maxReconnectDelay As Integer = 300000 ' Max 5 minutes
+    Private lastHeartbeatTime As DateTime = DateTime.Now
+    Private connectionLostTime As DateTime
+    Private isShuttingDown As Boolean = False
+
+#End Region
+
+
 #Region "Form Events"
 
     Private Async Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load

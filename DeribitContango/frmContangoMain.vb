@@ -172,18 +172,7 @@ Public Class frmContangoMain
                 If bb > 0D Then _mon.SpotBestBid = bb
                 If ba > 0D Then _mon.SpotBestAsk = ba
             ElseIf topic.StartsWith("book.BTC_USDC", StringComparison.OrdinalIgnoreCase) Then
-                Dim bids = payload("bids")
-                Dim asks = payload("asks")
-                If bids IsNot Nothing AndAlso bids.Type = JTokenType.Array AndAlso bids.Count > 0 Then
-                    Dim b0 = bids(0)
-                    Dim pb = If(b0.Type = JTokenType.Array, b0(0).Value(Of Decimal)(), b0.Value(Of Decimal?)("price").GetValueOrDefault(0D))
-                    If pb > 0D Then _mon.SpotBestBid = pb
-                End If
-                If asks IsNot Nothing AndAlso asks.Type = JTokenType.Array AndAlso asks.Count > 0 Then
-                    Dim a0 = asks(0)
-                    Dim pa = If(a0.Type = JTokenType.Array, a0(0).Value(Of Decimal)(), a0.Value(Of Decimal?)("price").GetValueOrDefault(0D))
-                    If pa > 0D Then _mon.SpotBestAsk = pa
-                End If
+                UpdateFromBookPayload(payload, isSpot:=True)
             ElseIf topic.StartsWith("ticker.", StringComparison.OrdinalIgnoreCase) AndAlso Not topic.Contains("BTC_USDC") Then
                 Dim bb = payload.Value(Of Decimal?)("best_bid_price").GetValueOrDefault(0D)
                 Dim ba = payload.Value(Of Decimal?)("best_ask_price").GetValueOrDefault(0D)
@@ -192,18 +181,7 @@ Public Class frmContangoMain
                 If ba > 0D Then _mon.WeeklyFutureBestAsk = ba
                 If mark > 0D Then _mon.WeeklyFutureMark = mark
             ElseIf topic.StartsWith("book.", StringComparison.OrdinalIgnoreCase) AndAlso Not topic.Contains("BTC_USDC") Then
-                Dim bids = payload("bids")
-                Dim asks = payload("asks")
-                If bids IsNot Nothing AndAlso bids.Type = JTokenType.Array AndAlso bids.Count > 0 Then
-                    Dim b0 = bids(0)
-                    Dim pb = If(b0.Type = JTokenType.Array, b0(0).Value(Of Decimal)(), b0.Value(Of Decimal?)("price").GetValueOrDefault(0D))
-                    If pb > 0D Then _mon.WeeklyFutureBestBid = pb
-                End If
-                If asks IsNot Nothing AndAlso asks.Type = JTokenType.Array AndAlso asks.Count > 0 Then
-                    Dim a0 = asks(0)
-                    Dim pa = If(a0.Type = JTokenType.Array, a0(0).Value(Of Decimal)(), a0.Value(Of Decimal?)("price").GetValueOrDefault(0D))
-                    If pa > 0D Then _mon.WeeklyFutureBestAsk = pa
-                End If
+                UpdateFromBookPayload(payload, isSpot:=False)
             End If
         Catch ex As Exception
             AppendLog("Public parse error: " & ex.Message)
@@ -291,6 +269,75 @@ Public Class frmContangoMain
             Return
         End If
         txtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {msg}" & Environment.NewLine)
+    End Sub
+
+
+    ' Returns Nullable(Of Decimal) to allow graceful fallback
+    Private Function ExtractTopPriceFromBookEntry(entry As JToken) As Decimal?
+        If entry Is Nothing Then Return Nothing
+
+        ' Case 1: Array formats
+        If entry.Type = JTokenType.Array Then
+            Dim arr = DirectCast(entry, JArray)
+            If arr.Count >= 3 AndAlso arr(0).Type = JTokenType.String Then
+                ' ["new"|"change"|"delete", price, amount]
+                If String.Equals(arr(0).Value(Of String)(), "delete", StringComparison.OrdinalIgnoreCase) Then
+                    Return Nothing
+                End If
+                If arr(1).Type = JTokenType.Float OrElse arr(1).Type = JTokenType.Integer Then
+                    Return arr(1).Value(Of Decimal)()
+                End If
+            ElseIf arr.Count >= 2 Then
+                ' [price, amount]
+                If arr(0).Type = JTokenType.Float OrElse arr(0).Type = JTokenType.Integer Then
+                    Return arr(0).Value(Of Decimal)()
+                End If
+            End If
+            Return Nothing
+        End If
+
+        ' Case 2: Object formats
+        If entry.Type = JTokenType.Object Then
+            Dim o = DirectCast(entry, JObject)
+            ' action + price
+            Dim action = o.Value(Of String)("action")
+            If Not String.IsNullOrEmpty(action) AndAlso String.Equals(action, "delete", StringComparison.OrdinalIgnoreCase) Then
+                Return Nothing
+            End If
+            Dim pxNullable = o.Value(Of Decimal?)("price")
+            If pxNullable.HasValue Then Return pxNullable.Value
+            ' Some book formats might embed price under different keys; extend here if needed
+            Return Nothing
+        End If
+
+        Return Nothing
+    End Function
+
+    Private Sub UpdateFromBookPayload(payload As JObject, isSpot As Boolean)
+        Try
+            Dim bids = payload("bids")
+            Dim asks = payload("asks")
+
+            Dim topBid As Decimal? = Nothing
+            Dim topAsk As Decimal? = Nothing
+
+            If bids IsNot Nothing AndAlso bids.Type = JTokenType.Array AndAlso bids.Count > 0 Then
+                topBid = ExtractTopPriceFromBookEntry(bids(0))
+            End If
+            If asks IsNot Nothing AndAlso asks.Type = JTokenType.Array AndAlso asks.Count > 0 Then
+                topAsk = ExtractTopPriceFromBookEntry(asks(0))
+            End If
+
+            If isSpot Then
+                If topBid.HasValue Then _mon.SpotBestBid = topBid.Value
+                If topAsk.HasValue Then _mon.SpotBestAsk = topAsk.Value
+            Else
+                If topBid.HasValue Then _mon.WeeklyFutureBestBid = topBid.Value
+                If topAsk.HasValue Then _mon.WeeklyFutureBestAsk = topAsk.Value
+            End If
+        Catch ex As Exception
+            ' Swallow and rely on ticker.* as primary source
+        End Try
     End Sub
 
 End Class

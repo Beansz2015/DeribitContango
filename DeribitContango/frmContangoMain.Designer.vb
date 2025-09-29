@@ -22,579 +22,630 @@ Partial Class frmContangoMain
     'Do not modify it using the code editor.
     <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
-        Me.grpConnection = New System.Windows.Forms.GroupBox()
-        Me.btnDiscoverWeekly = New System.Windows.Forms.Button()
-        Me.lblConn = New System.Windows.Forms.Label()
-        Me.btnConnect = New System.Windows.Forms.Button()
-        Me.txtClientSecret = New System.Windows.Forms.TextBox()
-        Me.Label2 = New System.Windows.Forms.Label()
-        Me.txtClientId = New System.Windows.Forms.TextBox()
-        Me.Label1 = New System.Windows.Forms.Label()
-        Me.grpMarket = New System.Windows.Forms.GroupBox()
-        Me.lblAnnual = New System.Windows.Forms.Label()
-        Me.Label16 = New System.Windows.Forms.Label()
-        Me.lblBasis = New System.Windows.Forms.Label()
-        Me.Label14 = New System.Windows.Forms.Label()
-        Me.lblFutMark = New System.Windows.Forms.Label()
-        Me.Label12 = New System.Windows.Forms.Label()
-        Me.lblFutAsk = New System.Windows.Forms.Label()
-        Me.lblFutBid = New System.Windows.Forms.Label()
-        Me.Label9 = New System.Windows.Forms.Label()
-        Me.Label8 = New System.Windows.Forms.Label()
-        Me.lblSpotAsk = New System.Windows.Forms.Label()
-        Me.lblSpotBid = New System.Windows.Forms.Label()
-        Me.Label5 = New System.Windows.Forms.Label()
-        Me.Label4 = New System.Windows.Forms.Label()
-        Me.lblIndex = New System.Windows.Forms.Label()
-        Me.Label3 = New System.Windows.Forms.Label()
-        Me.grpTime = New System.Windows.Forms.GroupBox()
-        Me.lblNowMYT = New System.Windows.Forms.Label()
-        Me.lblNowUTC = New System.Windows.Forms.Label()
-        Me.lblExpiryMYT = New System.Windows.Forms.Label()
-        Me.lblExpiryUTC = New System.Windows.Forms.Label()
-        Me.Label20 = New System.Windows.Forms.Label()
-        Me.Label19 = New System.Windows.Forms.Label()
-        Me.Label18 = New System.Windows.Forms.Label()
-        Me.Label17 = New System.Windows.Forms.Label()
-        Me.grpEntry = New System.Windows.Forms.GroupBox()
-        Me.numSlippageBps = New System.Windows.Forms.NumericUpDown()
-        Me.Label23 = New System.Windows.Forms.Label()
-        Me.numThreshold = New System.Windows.Forms.NumericUpDown()
-        Me.Label22 = New System.Windows.Forms.Label()
-        Me.btnCloseAll = New System.Windows.Forms.Button()
-        Me.btnRoll = New System.Windows.Forms.Button()
-        Me.btnEnter = New System.Windows.Forms.Button()
-        Me.txtAmount = New System.Windows.Forms.TextBox()
-        Me.lblAmountUnits = New System.Windows.Forms.Label()
-        Me.radBTC = New System.Windows.Forms.RadioButton()
-        Me.radUSD = New System.Windows.Forms.RadioButton()
-        Me.Label21 = New System.Windows.Forms.Label()
-        Me.grpLog = New System.Windows.Forms.GroupBox()
-        Me.txtLog = New System.Windows.Forms.RichTextBox()
-        Me.grpConnection.SuspendLayout()
-        Me.grpMarket.SuspendLayout()
-        Me.grpTime.SuspendLayout()
-        Me.grpEntry.SuspendLayout()
-        CType(Me.numSlippageBps, System.ComponentModel.ISupportInitialize).BeginInit()
-        CType(Me.numThreshold, System.ComponentModel.ISupportInitialize).BeginInit()
-        Me.grpLog.SuspendLayout()
-        Me.SuspendLayout()
-        '
-        'grpConnection
-        '
-        Me.grpConnection.Controls.Add(Me.btnDiscoverWeekly)
-        Me.grpConnection.Controls.Add(Me.lblConn)
-        Me.grpConnection.Controls.Add(Me.btnConnect)
-        Me.grpConnection.Controls.Add(Me.txtClientSecret)
-        Me.grpConnection.Controls.Add(Me.Label2)
-        Me.grpConnection.Controls.Add(Me.txtClientId)
-        Me.grpConnection.Controls.Add(Me.Label1)
-        Me.grpConnection.Location = New System.Drawing.Point(12, 12)
-        Me.grpConnection.Name = "grpConnection"
-        Me.grpConnection.Size = New System.Drawing.Size(776, 86)
-        Me.grpConnection.TabIndex = 0
-        Me.grpConnection.TabStop = False
-        Me.grpConnection.Text = "Connection"
-        '
-        'btnDiscoverWeekly
-        '
-        Me.btnDiscoverWeekly.Location = New System.Drawing.Point(677, 19)
-        Me.btnDiscoverWeekly.Name = "btnDiscoverWeekly"
-        Me.btnDiscoverWeekly.Size = New System.Drawing.Size(93, 23)
-        Me.btnDiscoverWeekly.TabIndex = 6
-        Me.btnDiscoverWeekly.Text = "Discover Weekly"
-        Me.btnDiscoverWeekly.UseVisualStyleBackColor = True
-        '
-        'lblConn
-        '
-        Me.lblConn.AutoSize = True
-        Me.lblConn.Location = New System.Drawing.Point(13, 56)
-        Me.lblConn.Name = "lblConn"
-        Me.lblConn.Size = New System.Drawing.Size(113, 15)
-        Me.lblConn.TabIndex = 5
-        Me.lblConn.Text = "Disconnected (WS)"
-        '
-        'btnConnect
-        '
-        Me.btnConnect.Location = New System.Drawing.Point(596, 19)
-        Me.btnConnect.Name = "btnConnect"
-        Me.btnConnect.Size = New System.Drawing.Size(75, 23)
-        Me.btnConnect.TabIndex = 4
-        Me.btnConnect.Text = "Connect"
-        Me.btnConnect.UseVisualStyleBackColor = True
-        '
-        'txtClientSecret
-        '
-        Me.txtClientSecret.Location = New System.Drawing.Point(359, 20)
-        Me.txtClientSecret.Name = "txtClientSecret"
-        Me.txtClientSecret.PasswordChar = Global.Microsoft.VisualBasic.ChrW(42)
-        Me.txtClientSecret.Size = New System.Drawing.Size(231, 23)
-        Me.txtClientSecret.TabIndex = 3
-        '
-        'Label2
-        '
-        Me.Label2.AutoSize = True
-        Me.Label2.Location = New System.Drawing.Point(279, 23)
-        Me.Label2.Name = "Label2"
-        Me.Label2.Size = New System.Drawing.Size(74, 15)
-        Me.Label2.TabIndex = 2
-        Me.Label2.Text = "ClientSecret"
-        '
-        'txtClientId
-        '
-        Me.txtClientId.Location = New System.Drawing.Point(77, 20)
-        Me.txtClientId.Name = "txtClientId"
-        Me.txtClientId.Size = New System.Drawing.Size(196, 23)
-        Me.txtClientId.TabIndex = 1
-        '
-        'Label1
-        '
-        Me.Label1.AutoSize = True
-        Me.Label1.Location = New System.Drawing.Point(13, 23)
-        Me.Label1.Name = "Label1"
-        Me.Label1.Size = New System.Drawing.Size(50, 15)
-        Me.Label1.TabIndex = 0
-        Me.Label1.Text = "ClientID"
-        '
-        'grpMarket
-        '
-        Me.grpMarket.Controls.Add(Me.lblAnnual)
-        Me.grpMarket.Controls.Add(Me.Label16)
-        Me.grpMarket.Controls.Add(Me.lblBasis)
-        Me.grpMarket.Controls.Add(Me.Label14)
-        Me.grpMarket.Controls.Add(Me.lblFutMark)
-        Me.grpMarket.Controls.Add(Me.Label12)
-        Me.grpMarket.Controls.Add(Me.lblFutAsk)
-        Me.grpMarket.Controls.Add(Me.lblFutBid)
-        Me.grpMarket.Controls.Add(Me.Label9)
-        Me.grpMarket.Controls.Add(Me.Label8)
-        Me.grpMarket.Controls.Add(Me.lblSpotAsk)
-        Me.grpMarket.Controls.Add(Me.lblSpotBid)
-        Me.grpMarket.Controls.Add(Me.Label5)
-        Me.grpMarket.Controls.Add(Me.Label4)
-        Me.grpMarket.Controls.Add(Me.lblIndex)
-        Me.grpMarket.Controls.Add(Me.Label3)
-        Me.grpMarket.Location = New System.Drawing.Point(12, 104)
-        Me.grpMarket.Name = "grpMarket"
-        Me.grpMarket.Size = New System.Drawing.Size(776, 114)
-        Me.grpMarket.TabIndex = 1
-        Me.grpMarket.TabStop = False
-        Me.grpMarket.Text = "Market"
-        '
-        'lblAnnual
-        '
-        Me.lblAnnual.AutoSize = True
-        Me.lblAnnual.Location = New System.Drawing.Point(628, 74)
-        Me.lblAnnual.Name = "lblAnnual"
-        Me.lblAnnual.Size = New System.Drawing.Size(37, 15)
-        Me.lblAnnual.TabIndex = 15
-        Me.lblAnnual.Text = "0.00%"
-        '
-        'Label16
-        '
-        Me.Label16.AutoSize = True
-        Me.Label16.Location = New System.Drawing.Point(570, 74)
-        Me.Label16.Name = "Label16"
-        Me.Label16.Size = New System.Drawing.Size(52, 15)
-        Me.Label16.TabIndex = 14
-        Me.Label16.Text = "Annual:"
-        '
-        'lblBasis
-        '
-        Me.lblBasis.AutoSize = True
-        Me.lblBasis.Location = New System.Drawing.Point(628, 48)
-        Me.lblBasis.Name = "lblBasis"
-        Me.lblBasis.Size = New System.Drawing.Size(37, 15)
-        Me.lblBasis.TabIndex = 13
-        Me.lblBasis.Text = "0.00%"
-        '
-        'Label14
-        '
-        Me.Label14.AutoSize = True
-        Me.Label14.Location = New System.Drawing.Point(581, 48)
-        Me.Label14.Name = "Label14"
-        Me.Label14.Size = New System.Drawing.Size(41, 15)
-        Me.Label14.TabIndex = 12
-        Me.Label14.Text = "Basis:"
-        '
-        'lblFutMark
-        '
-        Me.lblFutMark.AutoSize = True
-        Me.lblFutMark.Location = New System.Drawing.Point(384, 74)
-        Me.lblFutMark.Name = "lblFutMark"
-        Me.lblFutMark.Size = New System.Drawing.Size(34, 15)
-        Me.lblFutMark.TabIndex = 11
-        Me.lblFutMark.Text = "0.00"
-        '
-        'Label12
-        '
-        Me.Label12.AutoSize = True
-        Me.Label12.Location = New System.Drawing.Point(311, 74)
-        Me.Label12.Name = "Label12"
-        Me.Label12.Size = New System.Drawing.Size(67, 15)
-        Me.Label12.TabIndex = 10
-        Me.Label12.Text = "Fut Mark:"
-        '
-        'lblFutAsk
-        '
-        Me.lblFutAsk.AutoSize = True
-        Me.lblFutAsk.Location = New System.Drawing.Point(384, 48)
-        Me.lblFutAsk.Name = "lblFutAsk"
-        Me.lblFutAsk.Size = New System.Drawing.Size(34, 15)
-        Me.lblFutAsk.TabIndex = 9
-        Me.lblFutAsk.Text = "0.00"
-        '
-        'lblFutBid
-        '
-        Me.lblFutBid.AutoSize = True
-        Me.lblFutBid.Location = New System.Drawing.Point(384, 23)
-        Me.lblFutBid.Name = "lblFutBid"
-        Me.lblFutBid.Size = New System.Drawing.Size(34, 15)
-        Me.lblFutBid.TabIndex = 8
-        Me.lblFutBid.Text = "0.00"
-        '
-        'Label9
-        '
-        Me.Label9.AutoSize = True
-        Me.Label9.Location = New System.Drawing.Point(318, 48)
-        Me.Label9.Name = "Label9"
-        Me.Label9.Size = New System.Drawing.Size(60, 15)
-        Me.Label9.TabIndex = 7
-        Me.Label9.Text = "Fut Ask:"
-        '
-        'Label8
-        '
-        Me.Label8.AutoSize = True
-        Me.Label8.Location = New System.Drawing.Point(320, 23)
-        Me.Label8.Name = "Label8"
-        Me.Label8.Size = New System.Drawing.Size(58, 15)
-        Me.Label8.TabIndex = 6
-        Me.Label8.Text = "Fut Bid:"
-        '
-        'lblSpotAsk
-        '
-        Me.lblSpotAsk.AutoSize = True
-        Me.lblSpotAsk.Location = New System.Drawing.Point(77, 74)
-        Me.lblSpotAsk.Name = "lblSpotAsk"
-        Me.lblSpotAsk.Size = New System.Drawing.Size(34, 15)
-        Me.lblSpotAsk.TabIndex = 5
-        Me.lblSpotAsk.Text = "0.00"
-        '
-        'lblSpotBid
-        '
-        Me.lblSpotBid.AutoSize = True
-        Me.lblSpotBid.Location = New System.Drawing.Point(77, 48)
-        Me.lblSpotBid.Name = "lblSpotBid"
-        Me.lblSpotBid.Size = New System.Drawing.Size(34, 15)
-        Me.lblSpotBid.TabIndex = 4
-        Me.lblSpotBid.Text = "0.00"
-        '
-        'Label5
-        '
-        Me.Label5.AutoSize = True
-        Me.Label5.Location = New System.Drawing.Point(9, 74)
-        Me.Label5.Name = "Label5"
-        Me.Label5.Size = New System.Drawing.Size(62, 15)
-        Me.Label5.TabIndex = 3
-        Me.Label5.Text = "Spot Ask:"
-        '
-        'Label4
-        '
-        Me.Label4.AutoSize = True
-        Me.Label4.Location = New System.Drawing.Point(11, 48)
-        Me.Label4.Name = "Label4"
-        Me.Label4.Size = New System.Drawing.Size(60, 15)
-        Me.Label4.TabIndex = 2
-        Me.Label4.Text = "Spot Bid:"
-        '
-        'lblIndex
-        '
-        Me.lblIndex.AutoSize = True
-        Me.lblIndex.Location = New System.Drawing.Point(77, 23)
-        Me.lblIndex.Name = "lblIndex"
-        Me.lblIndex.Size = New System.Drawing.Size(34, 15)
-        Me.lblIndex.TabIndex = 1
-        Me.lblIndex.Text = "0.00"
-        '
-        'Label3
-        '
-        Me.Label3.AutoSize = True
-        Me.Label3.Location = New System.Drawing.Point(26, 23)
-        Me.Label3.Name = "Label3"
-        Me.Label3.Size = New System.Drawing.Size(45, 15)
-        Me.Label3.TabIndex = 0
-        Me.Label3.Text = "Index:"
-        '
-        'grpTime
-        '
-        Me.grpTime.Controls.Add(Me.lblNowMYT)
-        Me.grpTime.Controls.Add(Me.lblNowUTC)
-        Me.grpTime.Controls.Add(Me.lblExpiryMYT)
-        Me.grpTime.Controls.Add(Me.lblExpiryUTC)
-        Me.grpTime.Controls.Add(Me.Label20)
-        Me.grpTime.Controls.Add(Me.Label19)
-        Me.grpTime.Controls.Add(Me.Label18)
-        Me.grpTime.Controls.Add(Me.Label17)
-        Me.grpTime.Location = New System.Drawing.Point(12, 224)
-        Me.grpTime.Name = "grpTime"
-        Me.grpTime.Size = New System.Drawing.Size(776, 92)
-        Me.grpTime.TabIndex = 2
-        Me.grpTime.TabStop = False
-        Me.grpTime.Text = "Time / Expiry"
-        '
-        'lblNowMYT
-        '
-        Me.lblNowMYT.AutoSize = True
-        Me.lblNowMYT.Location = New System.Drawing.Point(512, 58)
-        Me.lblNowMYT.Name = "lblNowMYT"
-        Me.lblNowMYT.Size = New System.Drawing.Size(168, 15)
-        Me.lblNowMYT.TabIndex = 7
-        Me.lblNowMYT.Text = "0000-00-00 00:00:00 (MYT)"
-        '
-        'lblNowUTC
-        '
-        Me.lblNowUTC.AutoSize = True
-        Me.lblNowUTC.Location = New System.Drawing.Point(512, 28)
-        Me.lblNowUTC.Name = "lblNowUTC"
-        Me.lblNowUTC.Size = New System.Drawing.Size(169, 15)
-        Me.lblNowUTC.TabIndex = 6
-        Me.lblNowUTC.Text = "0000-00-00 00:00:00 (UTC)"
-        '
-        'lblExpiryMYT
-        '
-        Me.lblExpiryMYT.AutoSize = True
-        Me.lblExpiryMYT.Location = New System.Drawing.Point(109, 58)
-        Me.lblExpiryMYT.Name = "lblExpiryMYT"
-        Me.lblExpiryMYT.Size = New System.Drawing.Size(168, 15)
-        Me.lblExpiryMYT.TabIndex = 5
-        Me.lblExpiryMYT.Text = "0000-00-00 00:00:00 (MYT)"
-        '
-        'lblExpiryUTC
-        '
-        Me.lblExpiryUTC.AutoSize = True
-        Me.lblExpiryUTC.Location = New System.Drawing.Point(109, 28)
-        Me.lblExpiryUTC.Name = "lblExpiryUTC"
-        Me.lblExpiryUTC.Size = New System.Drawing.Size(169, 15)
-        Me.lblExpiryUTC.TabIndex = 4
-        Me.lblExpiryUTC.Text = "0000-00-00 00:00:00 (UTC)"
-        '
-        'Label20
-        '
-        Me.Label20.AutoSize = True
-        Me.Label20.Location = New System.Drawing.Point(443, 58)
-        Me.Label20.Name = "Label20"
-        Me.Label20.Size = New System.Drawing.Size(63, 15)
-        Me.Label20.TabIndex = 3
-        Me.Label20.Text = "Now MYT:"
-        '
-        'Label19
-        '
-        Me.Label19.AutoSize = True
-        Me.Label19.Location = New System.Drawing.Point(444, 28)
-        Me.Label19.Name = "Label19"
-        Me.Label19.Size = New System.Drawing.Size(62, 15)
-        Me.Label19.TabIndex = 2
-        Me.Label19.Text = "Now UTC:"
-        '
-        'Label18
-        '
-        Me.Label18.AutoSize = True
-        Me.Label18.Location = New System.Drawing.Point(32, 58)
-        Me.Label18.Name = "Label18"
-        Me.Label18.Size = New System.Drawing.Size(71, 15)
-        Me.Label18.TabIndex = 1
-        Me.Label18.Text = "Expiry MYT:"
-        '
-        'Label17
-        '
-        Me.Label17.AutoSize = True
-        Me.Label17.Location = New System.Drawing.Point(33, 28)
-        Me.Label17.Name = "Label17"
-        Me.Label17.Size = New System.Drawing.Size(70, 15)
-        Me.Label17.TabIndex = 0
-        Me.Label17.Text = "Expiry UTC:"
-        '
-        'grpEntry
-        '
-        Me.grpEntry.Controls.Add(Me.numSlippageBps)
-        Me.grpEntry.Controls.Add(Me.Label23)
-        Me.grpEntry.Controls.Add(Me.numThreshold)
-        Me.grpEntry.Controls.Add(Me.Label22)
-        Me.grpEntry.Controls.Add(Me.btnCloseAll)
-        Me.grpEntry.Controls.Add(Me.btnRoll)
-        Me.grpEntry.Controls.Add(Me.btnEnter)
-        Me.grpEntry.Controls.Add(Me.txtAmount)
-        Me.grpEntry.Controls.Add(Me.lblAmountUnits)
-        Me.grpEntry.Controls.Add(Me.radBTC)
-        Me.grpEntry.Controls.Add(Me.radUSD)
-        Me.grpEntry.Controls.Add(Me.Label21)
-        Me.grpEntry.Location = New System.Drawing.Point(12, 322)
-        Me.grpEntry.Name = "grpEntry"
-        Me.grpEntry.Size = New System.Drawing.Size(776, 106)
-        Me.grpEntry.TabIndex = 3
-        Me.grpEntry.TabStop = False
-        Me.grpEntry.Text = "Entry / Risk"
-        '
-        'numSlippageBps
-        '
-        Me.numSlippageBps.DecimalPlaces = 0
-        Me.numSlippageBps.Increment = New Decimal(New Integer() {1, 0, 0, 0})
-        Me.numSlippageBps.Location = New System.Drawing.Point(542, 62)
-        Me.numSlippageBps.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
-        Me.numSlippageBps.Minimum = New Decimal(New Integer() {0, 0, 0, 0})
-        Me.numSlippageBps.Name = "numSlippageBps"
-        Me.numSlippageBps.Size = New System.Drawing.Size(68, 23)
-        Me.numSlippageBps.TabIndex = 11
-        Me.numSlippageBps.Value = New Decimal(New Integer() {5, 0, 0, 0})
-        '
-        'Label23
-        '
-        Me.Label23.AutoSize = True
-        Me.Label23.Location = New System.Drawing.Point(444, 64)
-        Me.Label23.Name = "Label23"
-        Me.Label23.Size = New System.Drawing.Size(92, 15)
-        Me.Label23.TabIndex = 10
-        Me.Label23.Text = "Max Slippage bps"
-        '
-        'numThreshold
-        '
-        Me.numThreshold.DecimalPlaces = 4
-        Me.numThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
-        Me.numThreshold.Location = New System.Drawing.Point(542, 28)
-        Me.numThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
-        Me.numThreshold.Minimum = New Decimal(New Integer() {0, 0, 0, 0})
-        Me.numThreshold.Name = "numThreshold"
-        Me.numThreshold.Size = New System.Drawing.Size(68, 23)
-        Me.numThreshold.TabIndex = 9
-        Me.numThreshold.Value = New Decimal(New Integer() {25, 0, 0, 262144})
-        '
-        'Label22
-        '
-        Me.Label22.AutoSize = True
-        Me.Label22.Location = New System.Drawing.Point(452, 30)
-        Me.Label22.Name = "Label22"
-        Me.Label22.Size = New System.Drawing.Size(84, 15)
-        Me.Label22.TabIndex = 8
-        Me.Label22.Text = "Entry Threshold"
-        '
-        'btnCloseAll
-        '
-        Me.btnCloseAll.Location = New System.Drawing.Point(661, 62)
-        Me.btnCloseAll.Name = "btnCloseAll"
-        Me.btnCloseAll.Size = New System.Drawing.Size(109, 23)
-        Me.btnCloseAll.TabIndex = 7
-        Me.btnCloseAll.Text = "Close All"
-        Me.btnCloseAll.UseVisualStyleBackColor = True
-        '
-        'btnRoll
-        '
-        Me.btnRoll.Location = New System.Drawing.Point(661, 22)
-        Me.btnRoll.Name = "btnRoll"
-        Me.btnRoll.Size = New System.Drawing.Size(109, 23)
-        Me.btnRoll.TabIndex = 6
-        Me.btnRoll.Text = "Roll to Next"
-        Me.btnRoll.UseVisualStyleBackColor = True
-        '
-        'btnEnter
-        '
-        Me.btnEnter.Location = New System.Drawing.Point(350, 27)
-        Me.btnEnter.Name = "btnEnter"
-        Me.btnEnter.Size = New System.Drawing.Size(85, 58)
-        Me.btnEnter.TabIndex = 5
-        Me.btnEnter.Text = "Enter Basis"
-        Me.btnEnter.UseVisualStyleBackColor = True
-        '
-        'txtAmount
-        '
-        Me.txtAmount.Location = New System.Drawing.Point(86, 62)
-        Me.txtAmount.Name = "txtAmount"
-        Me.txtAmount.Size = New System.Drawing.Size(243, 23)
-        Me.txtAmount.TabIndex = 4
-        Me.txtAmount.Text = "1000"
-        '
-        'lblAmountUnits
-        '
-        Me.lblAmountUnits.AutoSize = True
-        Me.lblAmountUnits.Location = New System.Drawing.Point(13, 65)
-        Me.lblAmountUnits.Name = "lblAmountUnits"
-        Me.lblAmountUnits.Size = New System.Drawing.Size(67, 15)
-        Me.lblAmountUnits.TabIndex = 3
-        Me.lblAmountUnits.Text = "Amount USD"
-        '
-        'radBTC
-        '
-        Me.radBTC.AutoSize = True
-        Me.radBTC.Location = New System.Drawing.Point(153, 28)
-        Me.radBTC.Name = "radBTC"
-        Me.radBTC.Size = New System.Drawing.Size(48, 19)
-        Me.radBTC.TabIndex = 2
-        Me.radBTC.Text = "BTC"
-        Me.radBTC.UseVisualStyleBackColor = True
-        '
-        'radUSD
-        '
-        Me.radUSD.AutoSize = True
-        Me.radUSD.Checked = True
-        Me.radUSD.Location = New System.Drawing.Point(86, 28)
-        Me.radUSD.Name = "radUSD"
-        Me.radUSD.Size = New System.Drawing.Size(49, 19)
-        Me.radUSD.TabIndex = 1
-        Me.radUSD.TabStop = True
-        Me.radUSD.Text = "USD"
-        Me.radUSD.UseVisualStyleBackColor = True
-        '
-        'Label21
-        '
-        Me.Label21.AutoSize = True
-        Me.Label21.Location = New System.Drawing.Point(13, 30)
-        Me.Label21.Name = "Label21"
-        Me.Label21.Size = New System.Drawing.Size(67, 15)
-        Me.Label21.TabIndex = 0
-        Me.Label21.Text = "Size Input:"
-        '
-        'grpLog
-        '
-        Me.grpLog.Controls.Add(Me.txtLog)
-        Me.grpLog.Location = New System.Drawing.Point(12, 434)
-        Me.grpLog.Name = "grpLog"
-        Me.grpLog.Size = New System.Drawing.Size(776, 204)
-        Me.grpLog.TabIndex = 4
-        Me.grpLog.TabStop = False
-        Me.grpLog.Text = "Log"
-        '
-        'txtLog
-        '
-        Me.txtLog.Dock = System.Windows.Forms.DockStyle.Fill
-        Me.txtLog.Location = New System.Drawing.Point(3, 19)
-        Me.txtLog.Name = "txtLog"
-        Me.txtLog.Size = New System.Drawing.Size(770, 182)
-        Me.txtLog.TabIndex = 0
-        Me.txtLog.Text = ""
-        '
-        'frmContangoMain
-        '
-        Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 15.0!)
-        Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
-        Me.ClientSize = New System.Drawing.Size(800, 650)
-        Me.Controls.Add(Me.grpLog)
-        Me.Controls.Add(Me.grpEntry)
-        Me.Controls.Add(Me.grpTime)
-        Me.Controls.Add(Me.grpMarket)
-        Me.Controls.Add(Me.grpConnection)
-        Me.Name = "frmContangoMain"
-        Me.Text = "Deribit Contango Basis Trader"
-        Me.grpConnection.ResumeLayout(False)
-        Me.grpConnection.PerformLayout()
-        Me.grpMarket.ResumeLayout(False)
-        Me.grpMarket.PerformLayout()
-        Me.grpTime.ResumeLayout(False)
-        Me.grpTime.PerformLayout()
-        Me.grpEntry.ResumeLayout(False)
-        Me.grpEntry.PerformLayout()
-        CType(Me.numSlippageBps, System.ComponentModel.ISupportInitialize).EndInit()
-        CType(Me.numThreshold, System.ComponentModel.ISupportInitialize).EndInit()
-        Me.grpLog.ResumeLayout(False)
-        Me.ResumeLayout(False)
+        grpConnection = New GroupBox()
+        btnDiscoverWeekly = New Button()
+        lblConn = New Label()
+        btnConnect = New Button()
+        txtClientSecret = New TextBox()
+        Label2 = New Label()
+        txtClientId = New TextBox()
+        Label1 = New Label()
+        grpMarket = New GroupBox()
+        lblAnnual = New Label()
+        Label16 = New Label()
+        lblBasis = New Label()
+        Label14 = New Label()
+        lblFutMark = New Label()
+        Label12 = New Label()
+        lblFutAsk = New Label()
+        lblFutBid = New Label()
+        Label9 = New Label()
+        Label8 = New Label()
+        lblSpotAsk = New Label()
+        lblSpotBid = New Label()
+        Label5 = New Label()
+        Label4 = New Label()
+        lblIndex = New Label()
+        Label3 = New Label()
+        grpTime = New GroupBox()
+        lblNowMYT = New Label()
+        lblNowUTC = New Label()
+        lblExpiryMYT = New Label()
+        lblExpiryUTC = New Label()
+        Label20 = New Label()
+        Label19 = New Label()
+        Label18 = New Label()
+        Label17 = New Label()
+        grpEntry = New GroupBox()
+        numSlippageBps = New NumericUpDown()
+        Label23 = New Label()
+        numThreshold = New NumericUpDown()
+        Label22 = New Label()
+        btnCloseAll = New Button()
+        btnRoll = New Button()
+        btnEnter = New Button()
+        txtAmount = New TextBox()
+        lblAmountUnits = New Label()
+        radBTC = New RadioButton()
+        radUSD = New RadioButton()
+        Label21 = New Label()
+        grpLog = New GroupBox()
+        txtLog = New RichTextBox()
+        grpConnection.SuspendLayout()
+        grpMarket.SuspendLayout()
+        grpTime.SuspendLayout()
+        grpEntry.SuspendLayout()
+        CType(numSlippageBps, ComponentModel.ISupportInitialize).BeginInit()
+        CType(numThreshold, ComponentModel.ISupportInitialize).BeginInit()
+        grpLog.SuspendLayout()
+        SuspendLayout()
+        ' 
+        ' grpConnection
+        ' 
+        grpConnection.Controls.Add(btnDiscoverWeekly)
+        grpConnection.Controls.Add(lblConn)
+        grpConnection.Controls.Add(btnConnect)
+        grpConnection.Controls.Add(txtClientSecret)
+        grpConnection.Controls.Add(Label2)
+        grpConnection.Controls.Add(txtClientId)
+        grpConnection.Controls.Add(Label1)
+        grpConnection.Location = New Point(17, 20)
+        grpConnection.Margin = New Padding(4, 5, 4, 5)
+        grpConnection.Name = "grpConnection"
+        grpConnection.Padding = New Padding(4, 5, 4, 5)
+        grpConnection.Size = New Size(1109, 143)
+        grpConnection.TabIndex = 0
+        grpConnection.TabStop = False
+        grpConnection.Text = "Connection"
+        ' 
+        ' btnDiscoverWeekly
+        ' 
+        btnDiscoverWeekly.Location = New Point(967, 32)
+        btnDiscoverWeekly.Margin = New Padding(4, 5, 4, 5)
+        btnDiscoverWeekly.Name = "btnDiscoverWeekly"
+        btnDiscoverWeekly.Size = New Size(133, 38)
+        btnDiscoverWeekly.TabIndex = 6
+        btnDiscoverWeekly.Text = "Discover Weekly"
+        btnDiscoverWeekly.UseVisualStyleBackColor = True
+        ' 
+        ' lblConn
+        ' 
+        lblConn.AutoSize = True
+        lblConn.Location = New Point(19, 93)
+        lblConn.Margin = New Padding(4, 0, 4, 0)
+        lblConn.Name = "lblConn"
+        lblConn.Size = New Size(161, 25)
+        lblConn.TabIndex = 5
+        lblConn.Text = "Disconnected (WS)"
+        ' 
+        ' btnConnect
+        ' 
+        btnConnect.Location = New Point(851, 32)
+        btnConnect.Margin = New Padding(4, 5, 4, 5)
+        btnConnect.Name = "btnConnect"
+        btnConnect.Size = New Size(107, 38)
+        btnConnect.TabIndex = 4
+        btnConnect.Text = "Connect"
+        btnConnect.UseVisualStyleBackColor = True
+        ' 
+        ' txtClientSecret
+        ' 
+        txtClientSecret.Location = New Point(513, 33)
+        txtClientSecret.Margin = New Padding(4, 5, 4, 5)
+        txtClientSecret.Name = "txtClientSecret"
+        txtClientSecret.PasswordChar = "*"c
+        txtClientSecret.Size = New Size(328, 31)
+        txtClientSecret.TabIndex = 3
+        ' 
+        ' Label2
+        ' 
+        Label2.AutoSize = True
+        Label2.Location = New Point(399, 38)
+        Label2.Margin = New Padding(4, 0, 4, 0)
+        Label2.Name = "Label2"
+        Label2.Size = New Size(104, 25)
+        Label2.TabIndex = 2
+        Label2.Text = "ClientSecret"
+        ' 
+        ' txtClientId
+        ' 
+        txtClientId.Location = New Point(110, 33)
+        txtClientId.Margin = New Padding(4, 5, 4, 5)
+        txtClientId.Name = "txtClientId"
+        txtClientId.Size = New Size(278, 31)
+        txtClientId.TabIndex = 1
+        ' 
+        ' Label1
+        ' 
+        Label1.AutoSize = True
+        Label1.Location = New Point(19, 38)
+        Label1.Margin = New Padding(4, 0, 4, 0)
+        Label1.Name = "Label1"
+        Label1.Size = New Size(74, 25)
+        Label1.TabIndex = 0
+        Label1.Text = "ClientID"
+        ' 
+        ' grpMarket
+        ' 
+        grpMarket.Controls.Add(lblAnnual)
+        grpMarket.Controls.Add(Label16)
+        grpMarket.Controls.Add(lblBasis)
+        grpMarket.Controls.Add(Label14)
+        grpMarket.Controls.Add(lblFutMark)
+        grpMarket.Controls.Add(Label12)
+        grpMarket.Controls.Add(lblFutAsk)
+        grpMarket.Controls.Add(lblFutBid)
+        grpMarket.Controls.Add(Label9)
+        grpMarket.Controls.Add(Label8)
+        grpMarket.Controls.Add(lblSpotAsk)
+        grpMarket.Controls.Add(lblSpotBid)
+        grpMarket.Controls.Add(Label5)
+        grpMarket.Controls.Add(Label4)
+        grpMarket.Controls.Add(lblIndex)
+        grpMarket.Controls.Add(Label3)
+        grpMarket.Location = New Point(17, 173)
+        grpMarket.Margin = New Padding(4, 5, 4, 5)
+        grpMarket.Name = "grpMarket"
+        grpMarket.Padding = New Padding(4, 5, 4, 5)
+        grpMarket.Size = New Size(1109, 190)
+        grpMarket.TabIndex = 1
+        grpMarket.TabStop = False
+        grpMarket.Text = "Market"
+        ' 
+        ' lblAnnual
+        ' 
+        lblAnnual.AutoSize = True
+        lblAnnual.Location = New Point(897, 123)
+        lblAnnual.Margin = New Padding(4, 0, 4, 0)
+        lblAnnual.Name = "lblAnnual"
+        lblAnnual.Size = New Size(61, 25)
+        lblAnnual.TabIndex = 15
+        lblAnnual.Text = "0.00%"
+        ' 
+        ' Label16
+        ' 
+        Label16.AutoSize = True
+        Label16.Location = New Point(814, 123)
+        Label16.Margin = New Padding(4, 0, 4, 0)
+        Label16.Name = "Label16"
+        Label16.Size = New Size(71, 25)
+        Label16.TabIndex = 14
+        Label16.Text = "Annual:"
+        ' 
+        ' lblBasis
+        ' 
+        lblBasis.AutoSize = True
+        lblBasis.Location = New Point(897, 80)
+        lblBasis.Margin = New Padding(4, 0, 4, 0)
+        lblBasis.Name = "lblBasis"
+        lblBasis.Size = New Size(61, 25)
+        lblBasis.TabIndex = 13
+        lblBasis.Text = "0.00%"
+        ' 
+        ' Label14
+        ' 
+        Label14.AutoSize = True
+        Label14.Location = New Point(830, 80)
+        Label14.Margin = New Padding(4, 0, 4, 0)
+        Label14.Name = "Label14"
+        Label14.Size = New Size(55, 25)
+        Label14.TabIndex = 12
+        Label14.Text = "Basis:"
+        ' 
+        ' lblFutMark
+        ' 
+        lblFutMark.AutoSize = True
+        lblFutMark.Location = New Point(549, 123)
+        lblFutMark.Margin = New Padding(4, 0, 4, 0)
+        lblFutMark.Name = "lblFutMark"
+        lblFutMark.Size = New Size(46, 25)
+        lblFutMark.TabIndex = 11
+        lblFutMark.Text = "0.00"
+        ' 
+        ' Label12
+        ' 
+        Label12.AutoSize = True
+        Label12.Location = New Point(444, 123)
+        Label12.Margin = New Padding(4, 0, 4, 0)
+        Label12.Name = "Label12"
+        Label12.Size = New Size(86, 25)
+        Label12.TabIndex = 10
+        Label12.Text = "Fut Mark:"
+        ' 
+        ' lblFutAsk
+        ' 
+        lblFutAsk.AutoSize = True
+        lblFutAsk.Location = New Point(549, 80)
+        lblFutAsk.Margin = New Padding(4, 0, 4, 0)
+        lblFutAsk.Name = "lblFutAsk"
+        lblFutAsk.Size = New Size(46, 25)
+        lblFutAsk.TabIndex = 9
+        lblFutAsk.Text = "0.00"
+        ' 
+        ' lblFutBid
+        ' 
+        lblFutBid.AutoSize = True
+        lblFutBid.Location = New Point(549, 38)
+        lblFutBid.Margin = New Padding(4, 0, 4, 0)
+        lblFutBid.Name = "lblFutBid"
+        lblFutBid.Size = New Size(46, 25)
+        lblFutBid.TabIndex = 8
+        lblFutBid.Text = "0.00"
+        ' 
+        ' Label9
+        ' 
+        Label9.AutoSize = True
+        Label9.Location = New Point(454, 80)
+        Label9.Margin = New Padding(4, 0, 4, 0)
+        Label9.Name = "Label9"
+        Label9.Size = New Size(75, 25)
+        Label9.TabIndex = 7
+        Label9.Text = "Fut Ask:"
+        ' 
+        ' Label8
+        ' 
+        Label8.AutoSize = True
+        Label8.Location = New Point(457, 38)
+        Label8.Margin = New Padding(4, 0, 4, 0)
+        Label8.Name = "Label8"
+        Label8.Size = New Size(71, 25)
+        Label8.TabIndex = 6
+        Label8.Text = "Fut Bid:"
+        ' 
+        ' lblSpotAsk
+        ' 
+        lblSpotAsk.AutoSize = True
+        lblSpotAsk.Location = New Point(110, 123)
+        lblSpotAsk.Margin = New Padding(4, 0, 4, 0)
+        lblSpotAsk.Name = "lblSpotAsk"
+        lblSpotAsk.Size = New Size(46, 25)
+        lblSpotAsk.TabIndex = 5
+        lblSpotAsk.Text = "0.00"
+        ' 
+        ' lblSpotBid
+        ' 
+        lblSpotBid.AutoSize = True
+        lblSpotBid.Location = New Point(110, 80)
+        lblSpotBid.Margin = New Padding(4, 0, 4, 0)
+        lblSpotBid.Name = "lblSpotBid"
+        lblSpotBid.Size = New Size(46, 25)
+        lblSpotBid.TabIndex = 4
+        lblSpotBid.Text = "0.00"
+        ' 
+        ' Label5
+        ' 
+        Label5.AutoSize = True
+        Label5.Location = New Point(13, 123)
+        Label5.Margin = New Padding(4, 0, 4, 0)
+        Label5.Name = "Label5"
+        Label5.Size = New Size(88, 25)
+        Label5.TabIndex = 3
+        Label5.Text = "Spot Ask:"
+        ' 
+        ' Label4
+        ' 
+        Label4.AutoSize = True
+        Label4.Location = New Point(16, 80)
+        Label4.Margin = New Padding(4, 0, 4, 0)
+        Label4.Name = "Label4"
+        Label4.Size = New Size(84, 25)
+        Label4.TabIndex = 2
+        Label4.Text = "Spot Bid:"
+        ' 
+        ' lblIndex
+        ' 
+        lblIndex.AutoSize = True
+        lblIndex.Location = New Point(110, 38)
+        lblIndex.Margin = New Padding(4, 0, 4, 0)
+        lblIndex.Name = "lblIndex"
+        lblIndex.Size = New Size(46, 25)
+        lblIndex.TabIndex = 1
+        lblIndex.Text = "0.00"
+        ' 
+        ' Label3
+        ' 
+        Label3.AutoSize = True
+        Label3.Location = New Point(37, 38)
+        Label3.Margin = New Padding(4, 0, 4, 0)
+        Label3.Name = "Label3"
+        Label3.Size = New Size(59, 25)
+        Label3.TabIndex = 0
+        Label3.Text = "Index:"
+        ' 
+        ' grpTime
+        ' 
+        grpTime.Controls.Add(lblNowMYT)
+        grpTime.Controls.Add(lblNowUTC)
+        grpTime.Controls.Add(lblExpiryMYT)
+        grpTime.Controls.Add(lblExpiryUTC)
+        grpTime.Controls.Add(Label20)
+        grpTime.Controls.Add(Label19)
+        grpTime.Controls.Add(Label18)
+        grpTime.Controls.Add(Label17)
+        grpTime.Location = New Point(17, 373)
+        grpTime.Margin = New Padding(4, 5, 4, 5)
+        grpTime.Name = "grpTime"
+        grpTime.Padding = New Padding(4, 5, 4, 5)
+        grpTime.Size = New Size(1109, 153)
+        grpTime.TabIndex = 2
+        grpTime.TabStop = False
+        grpTime.Text = "Time / Expiry"
+        ' 
+        ' lblNowMYT
+        ' 
+        lblNowMYT.AutoSize = True
+        lblNowMYT.Location = New Point(731, 97)
+        lblNowMYT.Margin = New Padding(4, 0, 4, 0)
+        lblNowMYT.Name = "lblNowMYT"
+        lblNowMYT.Size = New Size(229, 25)
+        lblNowMYT.TabIndex = 7
+        lblNowMYT.Text = "0000-00-00 00:00:00 (MYT)"
+        ' 
+        ' lblNowUTC
+        ' 
+        lblNowUTC.AutoSize = True
+        lblNowUTC.Location = New Point(731, 47)
+        lblNowUTC.Margin = New Padding(4, 0, 4, 0)
+        lblNowUTC.Name = "lblNowUTC"
+        lblNowUTC.Size = New Size(225, 25)
+        lblNowUTC.TabIndex = 6
+        lblNowUTC.Text = "0000-00-00 00:00:00 (UTC)"
+        ' 
+        ' lblExpiryMYT
+        ' 
+        lblExpiryMYT.AutoSize = True
+        lblExpiryMYT.Location = New Point(156, 97)
+        lblExpiryMYT.Margin = New Padding(4, 0, 4, 0)
+        lblExpiryMYT.Name = "lblExpiryMYT"
+        lblExpiryMYT.Size = New Size(229, 25)
+        lblExpiryMYT.TabIndex = 5
+        lblExpiryMYT.Text = "0000-00-00 00:00:00 (MYT)"
+        ' 
+        ' lblExpiryUTC
+        ' 
+        lblExpiryUTC.AutoSize = True
+        lblExpiryUTC.Location = New Point(156, 47)
+        lblExpiryUTC.Margin = New Padding(4, 0, 4, 0)
+        lblExpiryUTC.Name = "lblExpiryUTC"
+        lblExpiryUTC.Size = New Size(225, 25)
+        lblExpiryUTC.TabIndex = 4
+        lblExpiryUTC.Text = "0000-00-00 00:00:00 (UTC)"
+        ' 
+        ' Label20
+        ' 
+        Label20.AutoSize = True
+        Label20.Location = New Point(633, 97)
+        Label20.Margin = New Padding(4, 0, 4, 0)
+        Label20.Name = "Label20"
+        Label20.Size = New Size(93, 25)
+        Label20.TabIndex = 3
+        Label20.Text = "Now MYT:"
+        ' 
+        ' Label19
+        ' 
+        Label19.AutoSize = True
+        Label19.Location = New Point(634, 47)
+        Label19.Margin = New Padding(4, 0, 4, 0)
+        Label19.Name = "Label19"
+        Label19.Size = New Size(89, 25)
+        Label19.TabIndex = 2
+        Label19.Text = "Now UTC:"
+        ' 
+        ' Label18
+        ' 
+        Label18.AutoSize = True
+        Label18.Location = New Point(46, 97)
+        Label18.Margin = New Padding(4, 0, 4, 0)
+        Label18.Name = "Label18"
+        Label18.Size = New Size(103, 25)
+        Label18.TabIndex = 1
+        Label18.Text = "Expiry MYT:"
+        ' 
+        ' Label17
+        ' 
+        Label17.AutoSize = True
+        Label17.Location = New Point(47, 47)
+        Label17.Margin = New Padding(4, 0, 4, 0)
+        Label17.Name = "Label17"
+        Label17.Size = New Size(99, 25)
+        Label17.TabIndex = 0
+        Label17.Text = "Expiry UTC:"
+        ' 
+        ' grpEntry
+        ' 
+        grpEntry.Controls.Add(numSlippageBps)
+        grpEntry.Controls.Add(Label23)
+        grpEntry.Controls.Add(numThreshold)
+        grpEntry.Controls.Add(Label22)
+        grpEntry.Controls.Add(btnCloseAll)
+        grpEntry.Controls.Add(btnRoll)
+        grpEntry.Controls.Add(btnEnter)
+        grpEntry.Controls.Add(txtAmount)
+        grpEntry.Controls.Add(lblAmountUnits)
+        grpEntry.Controls.Add(radBTC)
+        grpEntry.Controls.Add(radUSD)
+        grpEntry.Controls.Add(Label21)
+        grpEntry.Location = New Point(17, 537)
+        grpEntry.Margin = New Padding(4, 5, 4, 5)
+        grpEntry.Name = "grpEntry"
+        grpEntry.Padding = New Padding(4, 5, 4, 5)
+        grpEntry.Size = New Size(1109, 177)
+        grpEntry.TabIndex = 3
+        grpEntry.TabStop = False
+        grpEntry.Text = "Entry / Risk"
+        ' 
+        ' numSlippageBps
+        ' 
+        numSlippageBps.Location = New Point(774, 103)
+        numSlippageBps.Margin = New Padding(4, 5, 4, 5)
+        numSlippageBps.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        numSlippageBps.Name = "numSlippageBps"
+        numSlippageBps.Size = New Size(97, 31)
+        numSlippageBps.TabIndex = 11
+        numSlippageBps.Value = New Decimal(New Integer() {5, 0, 0, 0})
+        ' 
+        ' Label23
+        ' 
+        Label23.AutoSize = True
+        Label23.Location = New Point(634, 107)
+        Label23.Margin = New Padding(4, 0, 4, 0)
+        Label23.Name = "Label23"
+        Label23.Size = New Size(154, 25)
+        Label23.TabIndex = 10
+        Label23.Text = "Max Slippage bps"
+        ' 
+        ' numThreshold
+        ' 
+        numThreshold.DecimalPlaces = 4
+        numThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
+        numThreshold.Location = New Point(774, 47)
+        numThreshold.Margin = New Padding(4, 5, 4, 5)
+        numThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        numThreshold.Name = "numThreshold"
+        numThreshold.Size = New Size(97, 31)
+        numThreshold.TabIndex = 9
+        numThreshold.Value = New Decimal(New Integer() {25, 0, 0, 262144})
+        ' 
+        ' Label22
+        ' 
+        Label22.AutoSize = True
+        Label22.Location = New Point(646, 50)
+        Label22.Margin = New Padding(4, 0, 4, 0)
+        Label22.Name = "Label22"
+        Label22.Size = New Size(135, 25)
+        Label22.TabIndex = 8
+        Label22.Text = "Entry Threshold"
+        ' 
+        ' btnCloseAll
+        ' 
+        btnCloseAll.Location = New Point(944, 103)
+        btnCloseAll.Margin = New Padding(4, 5, 4, 5)
+        btnCloseAll.Name = "btnCloseAll"
+        btnCloseAll.Size = New Size(156, 38)
+        btnCloseAll.TabIndex = 7
+        btnCloseAll.Text = "Close All"
+        btnCloseAll.UseVisualStyleBackColor = True
+        ' 
+        ' btnRoll
+        ' 
+        btnRoll.Location = New Point(944, 37)
+        btnRoll.Margin = New Padding(4, 5, 4, 5)
+        btnRoll.Name = "btnRoll"
+        btnRoll.Size = New Size(156, 38)
+        btnRoll.TabIndex = 6
+        btnRoll.Text = "Roll to Next"
+        btnRoll.UseVisualStyleBackColor = True
+        ' 
+        ' btnEnter
+        ' 
+        btnEnter.Location = New Point(500, 45)
+        btnEnter.Margin = New Padding(4, 5, 4, 5)
+        btnEnter.Name = "btnEnter"
+        btnEnter.Size = New Size(121, 97)
+        btnEnter.TabIndex = 5
+        btnEnter.Text = "Enter Basis"
+        btnEnter.UseVisualStyleBackColor = True
+        ' 
+        ' txtAmount
+        ' 
+        txtAmount.Location = New Point(123, 103)
+        txtAmount.Margin = New Padding(4, 5, 4, 5)
+        txtAmount.Name = "txtAmount"
+        txtAmount.Size = New Size(345, 31)
+        txtAmount.TabIndex = 4
+        txtAmount.Text = "1000"
+        ' 
+        ' lblAmountUnits
+        ' 
+        lblAmountUnits.AutoSize = True
+        lblAmountUnits.Location = New Point(19, 108)
+        lblAmountUnits.Margin = New Padding(4, 0, 4, 0)
+        lblAmountUnits.Name = "lblAmountUnits"
+        lblAmountUnits.Size = New Size(117, 25)
+        lblAmountUnits.TabIndex = 3
+        lblAmountUnits.Text = "Amount USD"
+        ' 
+        ' radBTC
+        ' 
+        radBTC.AutoSize = True
+        radBTC.Location = New Point(219, 47)
+        radBTC.Margin = New Padding(4, 5, 4, 5)
+        radBTC.Name = "radBTC"
+        radBTC.Size = New Size(65, 29)
+        radBTC.TabIndex = 2
+        radBTC.Text = "BTC"
+        radBTC.UseVisualStyleBackColor = True
+        ' 
+        ' radUSD
+        ' 
+        radUSD.AutoSize = True
+        radUSD.Checked = True
+        radUSD.Location = New Point(123, 47)
+        radUSD.Margin = New Padding(4, 5, 4, 5)
+        radUSD.Name = "radUSD"
+        radUSD.Size = New Size(72, 29)
+        radUSD.TabIndex = 1
+        radUSD.TabStop = True
+        radUSD.Text = "USD"
+        radUSD.UseVisualStyleBackColor = True
+        ' 
+        ' Label21
+        ' 
+        Label21.AutoSize = True
+        Label21.Location = New Point(19, 50)
+        Label21.Margin = New Padding(4, 0, 4, 0)
+        Label21.Name = "Label21"
+        Label21.Size = New Size(94, 25)
+        Label21.TabIndex = 0
+        Label21.Text = "Size Input:"
+        ' 
+        ' grpLog
+        ' 
+        grpLog.Controls.Add(txtLog)
+        grpLog.Location = New Point(17, 723)
+        grpLog.Margin = New Padding(4, 5, 4, 5)
+        grpLog.Name = "grpLog"
+        grpLog.Padding = New Padding(4, 5, 4, 5)
+        grpLog.Size = New Size(1109, 340)
+        grpLog.TabIndex = 4
+        grpLog.TabStop = False
+        grpLog.Text = "Log"
+        ' 
+        ' txtLog
+        ' 
+        txtLog.Dock = DockStyle.Fill
+        txtLog.Location = New Point(4, 29)
+        txtLog.Margin = New Padding(4, 5, 4, 5)
+        txtLog.Name = "txtLog"
+        txtLog.Size = New Size(1101, 306)
+        txtLog.TabIndex = 0
+        txtLog.Text = ""
+        ' 
+        ' frmContangoMain
+        ' 
+        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
+        AutoScaleMode = AutoScaleMode.Font
+        ClientSize = New Size(1143, 1083)
+        Controls.Add(grpLog)
+        Controls.Add(grpEntry)
+        Controls.Add(grpTime)
+        Controls.Add(grpMarket)
+        Controls.Add(grpConnection)
+        Margin = New Padding(4, 5, 4, 5)
+        Name = "frmContangoMain"
+        Text = "Deribit Contango Basis Trader - V1.0"
+        grpConnection.ResumeLayout(False)
+        grpConnection.PerformLayout()
+        grpMarket.ResumeLayout(False)
+        grpMarket.PerformLayout()
+        grpTime.ResumeLayout(False)
+        grpTime.PerformLayout()
+        grpEntry.ResumeLayout(False)
+        grpEntry.PerformLayout()
+        CType(numSlippageBps, ComponentModel.ISupportInitialize).EndInit()
+        CType(numThreshold, ComponentModel.ISupportInitialize).EndInit()
+        grpLog.ResumeLayout(False)
+        ResumeLayout(False)
 
     End Sub
 

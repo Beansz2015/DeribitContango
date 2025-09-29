@@ -24,13 +24,11 @@ Public Class frmContangoMain
             AddHandler _api.OrderUpdate, AddressOf OnOrderUpdate
             AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
 
-            ' UI timer for clocks and computed values
             _uiTimer = New System.Windows.Forms.Timer()
             _uiTimer.Interval = 1000
             AddHandler _uiTimer.Tick, AddressOf OnUiTick
             _uiTimer.Start()
 
-            ' Default inputs
             radUSD.Checked = True
             numThreshold.Value = CDec(_pm.EntryThreshold)
             numSlippageBps.Value = CDec(_pm.MaxSlippageBps)
@@ -52,7 +50,6 @@ Public Class frmContangoMain
             Await _api.AuthorizeAsync(txtClientId.Text.Trim(), txtClientSecret.Text.Trim())
             AppendLog("Authorized; subscribing channels...")
 
-            ' Private channels for lifecycle tracking
             Await _api.SubscribePrivateAsync({
               "user.orders.btc",
               "user.trades.btc",
@@ -60,12 +57,14 @@ Public Class frmContangoMain
               "user.trades.usdc"
             })
 
-            ' Public index and spot BTC_USDC market
             Await _api.SubscribePublicAsync({
               "deribit_price_index.btc_usd",
               "ticker.BTC_USDC.100ms",
               "book.BTC_USDC.100ms"
             })
+
+            ' Preload spot specs
+            Await _pm.RefreshInstrumentSpecsAsync()
 
             AppendLog("Subscriptions active. Click Discover Weekly to select nearest future.")
         Catch ex As Exception
@@ -79,13 +78,13 @@ Public Class frmContangoMain
             Await _pm.DiscoverNearestWeeklyAsync()
             AppendLog("Nearest weekly: " & _pm.FuturesInstrument)
 
-            ' Subscribe to weekly future channels
-            If Not String.IsNullOrEmpty(_pm.FuturesInstrument) Then
-                Await _api.SubscribePublicAsync({
-                  $"ticker.{_pm.FuturesInstrument}.100ms",
-                  $"book.{_pm.FuturesInstrument}.100ms"
-                })
-            End If
+            Await _api.SubscribePublicAsync({
+              $"ticker.{_pm.FuturesInstrument}.100ms",
+              $"book.{_pm.FuturesInstrument}.100ms"
+            })
+
+            ' Load futures tick
+            Await _pm.RefreshInstrumentSpecsAsync()
 
             UpdateExpiryLabels()
         Catch ex As Exception
@@ -95,7 +94,6 @@ Public Class frmContangoMain
 
     Private Async Sub btnEnter_Click(sender As Object, e As EventArgs) Handles btnEnter.Click
         Try
-            ' Update model inputs
             _pm.UseUsdInput = radUSD.Checked
             _pm.EntryThreshold = numThreshold.Value
             _pm.MaxSlippageBps = numSlippageBps.Value
@@ -112,14 +110,13 @@ Public Class frmContangoMain
                 _pm.TargetUsd = 0D
             End If
 
-            ' Sanity checks
             If String.IsNullOrEmpty(_pm.FuturesInstrument) Then
                 Throw New ApplicationException("Weekly future not selected. Click Discover Weekly first.")
             End If
 
-            ' Execute entry (futures post_only GTC first; spot IOC on fills)
+            ' New sequence: Spot first, then futures (with post_only and IOC fallback)
             Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
-            AppendLog("Submitted futures short post_only+GTC; awaiting fills to hedge spot.")
+            AppendLog("Submitted spot IOC; futures post_only short will be placed on fills with IOC fallback.")
         Catch ex As Exception
             AppendLog("Enter error: " & ex.Message)
         End Try
@@ -128,14 +125,14 @@ Public Class frmContangoMain
     Private Async Sub btnRoll_Click(sender As Object, e As EventArgs) Handles btnRoll.Click
         Try
             Await _pm.RollToNextWeeklyAsync(_mon.IndexPriceUsd)
-            AppendLog("Requested roll: closing current via reduce_only and discover/open next weekly.")
+            AppendLog("Requested roll: closed current via reduce_only and selected next weekly.")
 
-            ' Refresh subscription to new instrument
             If Not String.IsNullOrEmpty(_pm.FuturesInstrument) Then
                 Await _api.SubscribePublicAsync({
                   $"ticker.{_pm.FuturesInstrument}.100ms",
                   $"book.{_pm.FuturesInstrument}.100ms"
                 })
+                Await _pm.RefreshInstrumentSpecsAsync()
                 UpdateExpiryLabels()
             End If
         Catch ex As Exception
@@ -164,16 +161,11 @@ Public Class frmContangoMain
     End Sub
 
     Private Sub OnPublicMessage(topic As String, payload As JObject)
-        ' Minimal, robust parsing across index, ticker, and book channels
         Try
             If topic.StartsWith("deribit_price_index", StringComparison.OrdinalIgnoreCase) Then
                 Dim px = payload.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                If px <= 0D Then
-                    px = payload.Value(Of Decimal?)("index_price").GetValueOrDefault(0D)
-                End If
-                If px > 0D Then
-                    _mon.IndexPriceUsd = px
-                End If
+                If px <= 0D Then px = payload.Value(Of Decimal?)("index_price").GetValueOrDefault(0D)
+                If px > 0D Then _mon.IndexPriceUsd = px
             ElseIf topic.StartsWith("ticker.BTC_USDC", StringComparison.OrdinalIgnoreCase) Then
                 Dim bb = payload.Value(Of Decimal?)("best_bid_price").GetValueOrDefault(0D)
                 Dim ba = payload.Value(Of Decimal?)("best_ask_price").GetValueOrDefault(0D)
@@ -213,15 +205,12 @@ Public Class frmContangoMain
                     If pa > 0D Then _mon.WeeklyFutureBestAsk = pa
                 End If
             End If
-
-            ' Persist snapshot periodically from UI timer to avoid DB pressure
         Catch ex As Exception
             AppendLog("Public parse error: " & ex.Message)
         End Try
     End Sub
 
     Private Sub OnOrderUpdate(currency As String, payload As JObject)
-        ' UI log only; PositionManager handles execution flow
         Dim sb As New StringBuilder()
         sb.Append($"ORDER {currency} ")
         sb.Append(payload.Value(Of String)("order_id"))
@@ -233,7 +222,6 @@ Public Class frmContangoMain
     End Sub
 
     Private Sub OnTradeUpdate(currency As String, payload As JObject)
-        ' UI log for each trade batch
         Dim instr = payload.Value(Of String)("instrument_name")
         AppendLog($"TRADE {currency} {instr}")
     End Sub
@@ -255,7 +243,6 @@ Public Class frmContangoMain
 
             UpdateExpiryLabels()
 
-            ' Periodic snapshot
             Static lastSnap As DateTime = DateTime.MinValue
             If (DateTime.UtcNow - lastSnap).TotalSeconds >= 2 Then
                 lastSnap = DateTime.UtcNow
@@ -271,8 +258,7 @@ Public Class frmContangoMain
                   _pm.ExpiryUtc
                 )
             End If
-        Catch ex As Exception
-            ' swallow
+        Catch
         End Try
     End Sub
 

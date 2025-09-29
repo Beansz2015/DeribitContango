@@ -1,175 +1,303 @@
-﻿
-Public Class ContangoPositionManager
+﻿Imports Newtonsoft.Json.Linq
 
-    Public Property CurrentSpotPosition As Decimal
-    Public Property CurrentFuturesPosition As Decimal
-    Public Property EntrySpotPrice As Decimal
-    Public Property EntryFuturesPrice As Decimal
-    Public Property EntryBasisSpread As Decimal
-    Public Property PositionSize As Decimal
-    Public Property EntryTimestamp As DateTime
-    Public Property ExpiryDate As DateTime
-    Public Property ContractName As String
+Namespace DeribitContango
+    Public Class ContangoPositionManager
+        Private ReadOnly _api As DeribitApiClient
+        Private ReadOnly _db As ContangoDatabase
+        Private ReadOnly _monitor As ContangoBasisMonitor
 
-    Private tradeHistory As New List(Of ContangoTrade)
+        ' Runtime state
+        Public Property SpotInstrument As String = "BTC_USDC"
+        Public Property FuturesInstrument As String = "" ' e.g., inverse weekly BTC: "BTC-27SEP25"
+        Public Property FuturesIsInverse As Boolean = True ' Using inverse weekly with 10 USD/contract sizing
+        Public Property ExpiryUtc As DateTime
 
-    Public ReadOnly Property IsHedged As Boolean
-        Get
-            ' Position is hedged if spot and futures positions are roughly equal and opposite
-            Return Math.Abs(CurrentSpotPosition + CurrentFuturesPosition) < (PositionSize * 0.01D) ' 1% tolerance
-        End Get
-    End Property
+        ' Inputs
+        Public Property EntryThreshold As Decimal = 0.0025D ' 25 bps weekly
+        Public Property TargetUsd As Decimal = 0D
+        Public Property TargetBtc As Decimal = 0D
+        Public Property UseUsdInput As Boolean = True
+        Public Property MaxSlippageBps As Decimal = 5D
 
-    Public ReadOnly Property IsPositionActive As Boolean
-        Get
-            Return PositionSize > 0 AndAlso (CurrentSpotPosition <> 0 OrElse CurrentFuturesPosition <> 0)
-        End Get
-    End Property
+        ' Order tracking
+        Private ReadOnly _openOrderIds As New HashSet(Of String)()
+        Private ReadOnly _lock As New Object()
 
-    Public ReadOnly Property DaysToExpiry As Integer
-        Get
-            If ExpiryDate = DateTime.MinValue Then Return 0
-            Return Math.Max(0, CInt((ExpiryDate - DateTime.Now).TotalDays))
-        End Get
-    End Property
+        Public Sub New(api As DeribitApiClient, db As ContangoDatabase, monitor As ContangoBasisMonitor)
+            _api = api
+            _db = db
+            _monitor = monitor
 
-    Public Function CalculateUnrealizedPnL(currentSpotPrice As Decimal, currentFuturesPrice As Decimal) As Decimal
-        If Not IsPositionActive Then Return 0
+            AddHandler _api.OrderUpdate, AddressOf OnOrderUpdate
+            AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
+        End Sub
 
-        ' Calculate P&L for cash-carry position
-        ' Long spot: (currentSpotPrice - entrySpotPrice) * positionSize
-        ' Short futures: (entryFuturesPrice - currentFuturesPrice) * positionSize
+        Public Async Function DiscoverNearestWeeklyAsync() As Task
+            ' Get all BTC futures and choose nearest unexpired weekly inverse future (BTC-settled)
+            Dim instruments = Await _api.PublicGetInstrumentsAsync("BTC", "future", False)
+            Dim bestName As String = Nothing
+            Dim bestExp As DateTime = Date.MaxValue
 
-        Dim spotPnL As Decimal = (currentSpotPrice - EntrySpotPrice) * CurrentSpotPosition
-        Dim futuresPnL As Decimal = (EntryFuturesPrice - currentFuturesPrice) * Math.Abs(CurrentFuturesPosition)
+            For Each it In instruments
+                Dim o = it.Value(Of JObject)()
+                Dim name = o.Value(Of String)("instrument_name")
+                Dim kind = o.Value(Of String)("kind")
+                Dim sett = o.Value(Of String)("settlement_currency")
+                Dim expMs = o.Value(Of Long)("expiration_timestamp")
+                Dim expUtc = DateTimeOffset.FromUnixTimeMilliseconds(expMs).UtcDateTime
+                Dim isPerp = name.Contains("PERPETUAL")
+                If kind = "future" AndAlso Not isPerp AndAlso sett = "BTC" Then
+                    ' Keep the soonest expiry
+                    If expUtc > DateTime.UtcNow AndAlso expUtc < bestExp Then
+                        bestExp = expUtc
+                        bestName = name
+                    End If
+                End If
+            Next
 
-        Return spotPnL + futuresPnL
-    End Function
-
-    Public Function CalculateExpectedProfit() As Decimal
-        ' Expected profit is the captured basis spread
-        Return EntryBasisSpread * PositionSize * EntrySpotPrice
-    End Function
-
-    Public Function CalculateCurrentBasisSpread(currentSpotPrice As Decimal, currentFuturesPrice As Decimal) As Decimal
-        If currentSpotPrice <= 0 Then Return 0
-        Return (currentFuturesPrice - currentSpotPrice) / currentSpotPrice
-    End Function
-
-    Public Sub OpenCashCarryPosition(spotPrice As Decimal, futuresPrice As Decimal, positionSizeParam As Decimal, contractNameParam As String, expiryDateParam As DateTime)
-        EntrySpotPrice = spotPrice
-        EntryFuturesPrice = futuresPrice
-        PositionSize = positionSizeParam
-        ContractName = contractNameParam
-        ExpiryDate = expiryDateParam
-        EntryTimestamp = DateTime.Now
-
-        ' Set positions
-        CurrentSpotPosition = positionSizeParam ' Long spot
-        CurrentFuturesPosition = -positionSizeParam ' Short futures
-
-        ' Calculate entry basis
-        EntryBasisSpread = (futuresPrice - spotPrice) / spotPrice
-    End Sub
-
-    Public Function CloseCashCarryPosition(currentSpotPrice As Decimal, currentFuturesPrice As Decimal) As ContangoTrade
-        If Not IsPositionActive Then Return Nothing
-
-        ' Calculate final P&L
-        Dim finalPnL As Decimal = CalculateUnrealizedPnL(currentSpotPrice, currentFuturesPrice)
-
-        ' Create trade record
-        Dim completedTrade As New ContangoTrade With {
-            .EntryDate = EntryTimestamp,
-            .ExitDate = DateTime.Now,
-            .EntrySpotPrice = EntrySpotPrice,
-            .EntryFuturesPrice = EntryFuturesPrice,
-            .ExitSpotPrice = currentSpotPrice,
-            .ExitFuturesPrice = currentFuturesPrice,
-            .PositionSize = PositionSize,
-            .EntryBasisSpread = EntryBasisSpread,
-            .ExitBasisSpread = CalculateCurrentBasisSpread(currentSpotPrice, currentFuturesPrice),
-            .RealizedPnL = finalPnL,
-            .ContractName = ContractName,
-            .DaysHeld = CInt((DateTime.Now - EntryTimestamp).TotalDays)
-        }
-
-        ' Add to history
-        tradeHistory.Add(completedTrade)
-
-        ' Reset positions
-        ResetPosition()
-
-        Return completedTrade
-    End Function
-
-    Private Sub ResetPosition()
-        CurrentSpotPosition = 0
-        CurrentFuturesPosition = 0
-        EntrySpotPrice = 0
-        EntryFuturesPrice = 0
-        EntryBasisSpread = 0
-        PositionSize = 0
-        EntryTimestamp = DateTime.MinValue
-        ExpiryDate = DateTime.MinValue
-        ContractName = ""
-    End Sub
-
-    Public Function GetPositionSummary() As String
-        If Not IsPositionActive Then Return "No active position"
-
-        Return $"Position: {PositionSize} BTC | Entry Basis: {EntryBasisSpread:P3} | Days to Expiry: {DaysToExpiry} | Contract: {ContractName}"
-    End Function
-
-    Public Function GetTradeHistory() As List(Of ContangoTrade)
-        Return tradeHistory.ToList()
-    End Function
-
-    Public Function GetTotalProfit() As Decimal
-        Return tradeHistory.Sum(Function(t) t.RealizedPnL)
-    End Function
-
-    Public Function GetWinRate() As Decimal
-        If tradeHistory.Count = 0 Then Return 0
-
-        Dim winningTrades As Integer = 0
-        For Each trade In tradeHistory
-            If trade.RealizedPnL > 0 Then
-                winningTrades += 1
+            If bestName Is Nothing Then
+                Throw New ApplicationException("No suitable weekly inverse BTC future found")
             End If
-        Next
+            FuturesInstrument = bestName
+            ExpiryUtc = bestExp
+            _monitor.WeeklyInstrument = bestName
+            _monitor.WeeklyExpiryUtc = bestExp
+        End Function
 
-        Return CDec(winningTrades) / tradeHistory.Count
-    End Function
+        Public Function ComputeContractsFromUsd(usdNotional As Decimal, futPriceUsd As Decimal) As Integer
+            ' Inverse weekly: 10 USD per contract
+            Dim contracts As Integer = CInt(Math.Round(usdNotional / 10D, MidpointRounding.AwayFromZero))
+            If contracts < 1 Then contracts = 1
+            Return contracts
+        End Function
 
-End Class
+        Public Function ComputeBtcFromContracts(contracts As Integer, fillPriceUsd As Decimal) As Decimal
+            ' For inverse, BTC size from filled contracts at price P: BTC = (contracts * 10) / P
+            If fillPriceUsd <= 0 Then Return 0D
+            Return (contracts * 10D) / fillPriceUsd
+        End Function
 
-Public Class ContangoTrade
-    Public Property EntryDate As DateTime
-    Public Property ExitDate As DateTime
-    Public Property EntrySpotPrice As Decimal
-    Public Property EntryFuturesPrice As Decimal
-    Public Property ExitSpotPrice As Decimal
-    Public Property ExitFuturesPrice As Decimal
-    Public Property PositionSize As Decimal
-    Public Property EntryBasisSpread As Decimal
-    Public Property ExitBasisSpread As Decimal
-    Public Property RealizedPnL As Decimal
-    Public Property ContractName As String
-    Public Property DaysHeld As Integer
+        Public Function NormalizeInputs(indexPrice As Decimal) As (targetUsd As Decimal, targetBtc As Decimal)
+            If UseUsdInput Then
+                Dim tBtc = If(indexPrice > 0D, TargetUsd / indexPrice, 0D)
+                ' Sanity fit to at least 10 USD equivalent
+                If TargetUsd < 10D Then Throw New ApplicationException("USD amount too small for 10 USD/contract granularity")
+                Return (TargetUsd, tBtc)
+            Else
+                Dim tUsd = TargetBtc * indexPrice
+                If tUsd < 10D Then Throw New ApplicationException("BTC amount too small for 10 USD/contract granularity")
+                Return (tUsd, TargetBtc)
+            End If
+        End Function
 
-    Public ReadOnly Property ReturnOnCapital As Decimal
-        Get
-            If EntrySpotPrice * PositionSize = 0 Then Return 0
-            Return RealizedPnL / (EntrySpotPrice * PositionSize)
-        End Get
-    End Property
+        Public Async Function EnterBasisAsync(indexPrice As Decimal,
+                                              futBestBid As Decimal,
+                                              spotBestAsk As Decimal) As Task
+            Dim inputs = NormalizeInputs(indexPrice)
+            Dim usdN As Decimal = inputs.targetUsd
+            Dim btcN As Decimal = inputs.targetBtc
 
-    Public ReadOnly Property AnnualizedReturn As Decimal
-        Get
-            If DaysHeld = 0 Then Return 0
-            Return ReturnOnCapital * (365D / DaysHeld)
-        End Get
-    End Property
+            Dim basis = _monitor.BasisMid
+            If basis < EntryThreshold Then
+                Throw New ApplicationException($"Basis {basis:P2} below threshold {EntryThreshold:P2}")
+            End If
 
-End Class
+            ' 1) Place post_only+GTC short on weekly inverse future near best bid
+            Dim price = If(futBestBid > 0, futBestBid, _monitor.FutureMid)
+            If price <= 0 Then Throw New ApplicationException("Future price unavailable")
+            Dim contracts = ComputeContractsFromUsd(usdN, price)
+
+            Dim futLabel = $"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
+            Dim futOrder = Await _api.PlaceOrderAsync(
+              instrument:=FuturesInstrument,
+              side:="sell",
+              amount:=Nothing,
+              contracts:=contracts,
+              price:=price,
+              orderType:="limit",
+              tif:="good_til_cancelled",
+              postOnly:=True,
+              reduceOnly:=False,
+              label:=futLabel
+            )
+            TrackOrder(futOrder)
+
+            ' 2) Wait for fills via events; on fill, sweep spot BTC_USDC IOC marketable limit
+            ' The actual execution is driven by OnTradeUpdate accumulating fills and then hedging spot
+        End Function
+
+        Public Async Function RollToNextWeeklyAsync(indexPrice As Decimal) As Task
+            ' Close current future reduce_only, then open next-week short
+            If String.IsNullOrEmpty(FuturesInstrument) Then Throw New ApplicationException("No active weekly instrument")
+            ' Fetch next weekly first to avoid gaps
+            Dim current = FuturesInstrument
+            Await DiscoverNearestWeeklyAsync()
+            Dim nextInstr = FuturesInstrument
+
+            ' Step 1: Close current inverse short: buy reduce_only IOC
+            ' Query current position size for this instrument
+            Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+            Dim curContracts As Integer = 0
+            For Each p In posArr
+                Dim o = p.Value(Of JObject)()
+                If o.Value(Of String)("instrument_name") = current Then
+                    curContracts = Math.Abs(o.Value(Of Integer)("size"))
+                End If
+            Next
+            If curContracts > 0 Then
+                Dim closeBuy = Await _api.PlaceOrderAsync(
+                  instrument:=current,
+                  side:="buy",
+                  amount:=Nothing,
+                  contracts:=curContracts,
+                  price:=Nothing,
+                  orderType:="market",
+                  tif:="immediate_or_cancel",
+                  postOnly:=Nothing,
+                  reduceOnly:=True,
+                  label:="ContangoRollClose"
+                )
+                TrackOrder(closeBuy)
+            End If
+
+            ' Step 2: Open next short (post_only GTC); price will be handled by caller via latest book
+            ' This can be triggered by UI calling EnterBasisAsync after DiscoverNearestWeeklyAsync
+        End Function
+
+        Public Async Function CloseAllAsync() As Task
+            ' Best-effort: cancel resting futures, close any inverse futures using reduce_only,
+            ' and unwind spot BTC_USDC
+            Try
+                ' Futures
+                Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+                For Each p In posArr
+                    Dim o = p.Value(Of JObject)()
+                    Dim name = o.Value(Of String)("instrument_name")
+                    Dim sz = o.Value(Of Integer)("size")
+                    If sz < 0 Then
+                        Dim contracts = Math.Abs(sz)
+                        Dim closeBuy = Await _api.PlaceOrderAsync(
+                          instrument:=name,
+                          side:="buy",
+                          contracts:=contracts,
+                          orderType:="market",
+                          tif:="immediate_or_cancel",
+                          reduceOnly:=True,
+                          label:="ContangoClose"
+                        )
+                        TrackOrder(closeBuy)
+                    End If
+                Next
+            Catch
+            End Try
+            ' Spot unwind is optional for a basis close if spot is net long; caller can execute sell on BTC_USDC as needed
+        End Function
+
+        Private Sub TrackOrder(orderObj As JObject)
+            Dim oid = orderObj.Value(Of JObject)("order")?.Value(Of String)("order_id")
+            If Not String.IsNullOrEmpty(oid) Then
+                SyncLock _lock
+                    _openOrderIds.Add(oid)
+                End SyncLock
+            End If
+        End Sub
+
+        ' Handle order lifecycle
+        Private Sub OnOrderUpdate(currency As String, payload As JObject)
+            ' payload has fields including order_id, state, filled_amount/filled_contracts, instrument_name
+            Dim orderId = payload.Value(Of String)("order_id")
+            Dim state = payload.Value(Of String)("state")
+            If String.IsNullOrEmpty(orderId) Then Return
+
+            Dim isOpenTracked As Boolean = False
+            SyncLock _lock
+                isOpenTracked = _openOrderIds.Contains(orderId)
+                If isOpenTracked AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
+                    _openOrderIds.Remove(orderId)
+                End If
+            End SyncLock
+        End Sub
+
+        Private Async Sub OnTradeUpdate(currency As String, payload As JObject)
+            ' When futures short fills, hedge with spot BTC_USDC IOC
+            Dim instrument = payload.Value(Of String)("instrument_name")
+            If String.IsNullOrEmpty(instrument) Then Return
+
+            If instrument = FuturesInstrument Then
+                ' Aggregate contracts filled
+                Dim trades = payload("trades")
+                If trades Is Nothing OrElse trades.Type <> JTokenType.Array Then Return
+                Dim totalContracts As Integer = 0
+                Dim avgPrice As Decimal = 0D
+                Dim w As Decimal = 0D
+
+                For Each t In trades
+                    Dim side = t.Value(Of String)("side")
+                    If side <> "sell" Then Continue For ' For our short, fill side is "sell"
+                    Dim c As Integer = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+                    Dim px As Decimal = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                    Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
+                    Dim feeCcy = t.Value(Of String)("fee_currency")
+                    totalContracts += c
+                    If px > 0 Then
+                        avgPrice = (avgPrice * w + px * c) / Math.Max(1, w + c)
+                        w += c
+                    End If
+                    ' Persist trade
+                    _db.SaveTrade(
+                      t.Value(Of String)("trade_id"),
+                      DateTime.UtcNow,
+                      side,
+                      instrument,
+                      Nothing,
+                      c,
+                      px,
+                      feeCcy,
+                      fee
+                    )
+                Next
+
+                If totalContracts > 0 AndAlso avgPrice > 0 Then
+                    Dim btcToBuy = ComputeBtcFromContracts(totalContracts, avgPrice)
+                    ' Compute a marketable limit price for IOC on BTC_USDC
+                    Dim limitUp = _monitor.SpotMid * (1D + MaxSlippageBps / 10000D)
+                    Dim spotBuy = Await _api.PlaceOrderAsync(
+                      instrument:=SpotInstrument,
+                      side:="buy",
+                      amount:=btcToBuy,
+                      contracts:=Nothing,
+                      price:=limitUp,
+                      orderType:="limit",
+                      tif:="immediate_or_cancel",
+                      postOnly:=Nothing,
+                      reduceOnly:=Nothing,
+                      label:="ContangoSpotIOC"
+                    )
+                    TrackOrder(spotBuy)
+                End If
+            ElseIf instrument = SpotInstrument Then
+                ' Persist spot trades
+                Dim trades = payload("trades")
+                If trades Is Nothing OrElse trades.Type <> JTokenType.Array Then Return
+                For Each t In trades
+                    Dim side = t.Value(Of String)("side")
+                    Dim amt = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                    Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
+                    Dim feeCcy = t.Value(Of String)("fee_currency")
+                    _db.SaveTrade(
+                      t.Value(Of String)("trade_id"),
+                      DateTime.UtcNow,
+                      side,
+                      instrument,
+                      amt,
+                      Nothing,
+                      px,
+                      feeCcy,
+                      fee
+                    )
+                Next
+            End If
+        End Sub
+    End Class
+End Namespace

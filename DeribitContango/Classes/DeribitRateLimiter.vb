@@ -1,74 +1,35 @@
-﻿Imports System.Collections.Concurrent
+﻿Imports System.Threading
 
-Public Class DeribitRateLimiter
+Namespace DeribitContango
+    ' Simple token-bucket limiter aligned with Deribit best practices and burst control
+    Public Class DeribitRateLimiter
+        Private ReadOnly _maxPerSecond As Integer
+        Private _tokens As Integer
+        Private _lastRefill As DateTime = DateTime.UtcNow
+        Private ReadOnly _lock As New Object()
 
-    Private ReadOnly maxRequests As Integer
-    Private ReadOnly windowSeconds As Integer
-    Private ReadOnly requestTimes As ConcurrentQueue(Of DateTime)
-    Private ReadOnly lockObject As New Object()
+        Public Sub New(Optional maxPerSecond As Integer = 20)
+            _maxPerSecond = Math.Max(1, maxPerSecond)
+            _tokens = _maxPerSecond
+        End Sub
 
-    Public Sub New(Optional maxRequestsPerWindow As Integer = 50, Optional windowSizeSeconds As Integer = 10)
-        maxRequests = maxRequestsPerWindow
-        windowSeconds = windowSizeSeconds
-        requestTimes = New ConcurrentQueue(Of DateTime)()
-    End Sub
-
-    Public Function CanMakeRequest() As Boolean
-        SyncLock lockObject
-            CleanupOldRequests()
-            Return requestTimes.Count < maxRequests
-        End SyncLock
-    End Function
-
-    Public Sub RecordRequest()
-        SyncLock lockObject
-            requestTimes.Enqueue(DateTime.Now)
-            CleanupOldRequests()
-        End SyncLock
-    End Sub
-
-    Private Sub CleanupOldRequests()
-        Dim cutoffTime As DateTime = DateTime.Now.AddSeconds(-windowSeconds)
-
-        While requestTimes.Count > 0
-            Dim oldestTime As DateTime
-            If requestTimes.TryPeek(oldestTime) AndAlso oldestTime < cutoffTime Then
-                requestTimes.TryDequeue(oldestTime)
-            Else
-                Exit While
-            End If
-        End While
-    End Sub
-
-    Public ReadOnly Property RequestsInWindow As Integer
-        Get
-            SyncLock lockObject
-                CleanupOldRequests()
-                Return requestTimes.Count
-            End SyncLock
-        End Get
-    End Property
-
-    Public ReadOnly Property AvailableRequests As Integer
-        Get
-            Return maxRequests - RequestsInWindow
-        End Get
-    End Property
-
-    Public Function GetWaitTime() As TimeSpan
-        SyncLock lockObject
-            If CanMakeRequest() Then
-                Return TimeSpan.Zero
-            End If
-
-            Dim oldestRequest As DateTime
-            If requestTimes.TryPeek(oldestRequest) Then
-                Dim waitUntil As DateTime = oldestRequest.AddSeconds(windowSeconds)
-                Return If(waitUntil > DateTime.Now, waitUntil.Subtract(DateTime.Now), TimeSpan.Zero)
-            End If
-
-            Return TimeSpan.Zero
-        End SyncLock
-    End Function
-
-End Class
+        Public Async Function WaitTurnAsync() As Task
+            While True
+                SyncLock _lock
+                    Dim now = DateTime.UtcNow
+                    Dim elapsed = (now - _lastRefill).TotalSeconds
+                    If elapsed >= 1 Then
+                        Dim refill = CInt(Math.Floor(elapsed)) * _maxPerSecond
+                        _tokens = Math.Min(_maxPerSecond, _tokens + refill)
+                        _lastRefill = now
+                    End If
+                    If _tokens > 0 Then
+                        _tokens -= 1
+                        Return
+                    End If
+                End SyncLock
+                Await Task.Delay(25)
+            End While
+        End Function
+    End Class
+End Namespace

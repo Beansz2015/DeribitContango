@@ -1,9 +1,9 @@
-﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()> _
+﻿<Global.Microsoft.VisualBasic.CompilerServices.DesignerGenerated()>
 Partial Class frmContangoMain
     Inherits System.Windows.Forms.Form
 
     'Form overrides dispose to clean up the component list.
-    <System.Diagnostics.DebuggerNonUserCode()> _
+    <System.Diagnostics.DebuggerNonUserCode()>
     Protected Overrides Sub Dispose(ByVal disposing As Boolean)
         Try
             If disposing AndAlso components IsNot Nothing Then
@@ -20,522 +20,631 @@ Partial Class frmContangoMain
     'NOTE: The following procedure is required by the Windows Form Designer
     'It can be modified using the Windows Form Designer.  
     'Do not modify it using the code editor.
-    <System.Diagnostics.DebuggerStepThrough()> _
+    <System.Diagnostics.DebuggerStepThrough()>
     Private Sub InitializeComponent()
-        pnlConnectionStatus = New Panel()
-        lblLatency = New Label()
-        lblUptime = New Label()
-        lblLastUpdate = New Label()
-        lblRateLimit = New Label()
-        lblConnectionStatus = New Label()
-        pnlMarketData = New Panel()
-        lblAnnualizedReturn = New Label()
-        Label4 = New Label()
-        lblBasisSpread = New Label()
-        Label3 = New Label()
-        lblWeeklyFuturesPrice = New Label()
-        Label2 = New Label()
-        lblSpotPrice = New Label()
-        Label1 = New Label()
-        pnlPositionManagement = New Panel()
-        Button1 = New Button()
-        lblBTCBalance = New Label()
-        grpCurrentPosition = New GroupBox()
-        btnClosePosition = New Button()
-        lblDaysToExpiry = New Label()
-        lblUnrealizedPnL = New Label()
-        lblPositionStatus = New Label()
-        grpPositionEntry = New GroupBox()
-        btnRollPosition = New Button()
-        btnExecuteCashCarry = New Button()
-        nudMinBasisThreshold = New NumericUpDown()
-        Label6 = New Label()
-        nudPositionSize = New NumericUpDown()
-        Label5 = New Label()
-        pnlTradingLog = New Panel()
-        btnClearLogs = New Button()
-        txtLogs = New RichTextBox()
-        Label7 = New Label()
-        pnlConnectionStatus.SuspendLayout()
-        pnlMarketData.SuspendLayout()
-        pnlPositionManagement.SuspendLayout()
-        grpCurrentPosition.SuspendLayout()
-        grpPositionEntry.SuspendLayout()
-        CType(nudMinBasisThreshold, ComponentModel.ISupportInitialize).BeginInit()
-        CType(nudPositionSize, ComponentModel.ISupportInitialize).BeginInit()
-        pnlTradingLog.SuspendLayout()
-        SuspendLayout()
-        ' 
-        ' pnlConnectionStatus
-        ' 
-        pnlConnectionStatus.BackColor = SystemColors.AppWorkspace
-        pnlConnectionStatus.Controls.Add(lblLatency)
-        pnlConnectionStatus.Controls.Add(lblUptime)
-        pnlConnectionStatus.Controls.Add(lblLastUpdate)
-        pnlConnectionStatus.Controls.Add(lblRateLimit)
-        pnlConnectionStatus.Controls.Add(lblConnectionStatus)
-        pnlConnectionStatus.Dock = DockStyle.Top
-        pnlConnectionStatus.Location = New Point(0, 0)
-        pnlConnectionStatus.Name = "pnlConnectionStatus"
-        pnlConnectionStatus.Size = New Size(1149, 60)
-        pnlConnectionStatus.TabIndex = 0
-        ' 
-        ' lblLatency
-        ' 
-        lblLatency.AutoSize = True
-        lblLatency.ForeColor = SystemColors.HotTrack
-        lblLatency.Location = New Point(745, 15)
-        lblLatency.MinimumSize = New Size(200, 25)
-        lblLatency.Name = "lblLatency"
-        lblLatency.Size = New Size(200, 25)
-        lblLatency.TabIndex = 4
-        lblLatency.Text = "Latency:"
-        ' 
-        ' lblUptime
-        ' 
-        lblUptime.AutoSize = True
-        lblUptime.ForeColor = SystemColors.HotTrack
-        lblUptime.Location = New Point(586, 15)
-        lblUptime.MinimumSize = New Size(200, 25)
-        lblUptime.Name = "lblUptime"
-        lblUptime.Size = New Size(200, 25)
-        lblUptime.TabIndex = 3
-        lblUptime.Text = "Uptime:"
-        ' 
-        ' lblLastUpdate
-        ' 
-        lblLastUpdate.AutoSize = True
-        lblLastUpdate.ForeColor = SystemColors.HotTrack
-        lblLastUpdate.Location = New Point(380, 15)
-        lblLastUpdate.MinimumSize = New Size(200, 25)
-        lblLastUpdate.Name = "lblLastUpdate"
-        lblLastUpdate.Size = New Size(200, 25)
-        lblLastUpdate.TabIndex = 2
-        lblLastUpdate.Text = "Last Update: --:--:--"
-        ' 
-        ' lblRateLimit
-        ' 
-        lblRateLimit.AutoSize = True
-        lblRateLimit.ForeColor = SystemColors.HotTrack
-        lblRateLimit.Location = New Point(220, 15)
-        lblRateLimit.MinimumSize = New Size(150, 25)
-        lblRateLimit.Name = "lblRateLimit"
-        lblRateLimit.Size = New Size(150, 25)
-        lblRateLimit.TabIndex = 1
-        lblRateLimit.Text = "Rate: 0/50"
-        ' 
-        ' lblConnectionStatus
-        ' 
-        lblConnectionStatus.AutoSize = True
-        lblConnectionStatus.ForeColor = SystemColors.HotTrack
-        lblConnectionStatus.Location = New Point(10, 15)
-        lblConnectionStatus.MinimumSize = New Size(200, 25)
-        lblConnectionStatus.Name = "lblConnectionStatus"
-        lblConnectionStatus.Size = New Size(200, 25)
-        lblConnectionStatus.TabIndex = 0
-        lblConnectionStatus.Text = "Status: Connecting..."
-        ' 
-        ' pnlMarketData
-        ' 
-        pnlMarketData.BackColor = Color.WhiteSmoke
-        pnlMarketData.Controls.Add(lblAnnualizedReturn)
-        pnlMarketData.Controls.Add(Label4)
-        pnlMarketData.Controls.Add(lblBasisSpread)
-        pnlMarketData.Controls.Add(Label3)
-        pnlMarketData.Controls.Add(lblWeeklyFuturesPrice)
-        pnlMarketData.Controls.Add(Label2)
-        pnlMarketData.Controls.Add(lblSpotPrice)
-        pnlMarketData.Controls.Add(Label1)
-        pnlMarketData.Dock = DockStyle.Left
-        pnlMarketData.Location = New Point(0, 60)
-        pnlMarketData.MinimumSize = New Size(350, 0)
-        pnlMarketData.Name = "pnlMarketData"
-        pnlMarketData.Size = New Size(350, 684)
-        pnlMarketData.TabIndex = 1
-        ' 
-        ' lblAnnualizedReturn
-        ' 
-        lblAnnualizedReturn.AutoSize = True
-        lblAnnualizedReturn.Font = New Font("Segoe UI", 12F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        lblAnnualizedReturn.ForeColor = Color.DarkGreen
-        lblAnnualizedReturn.Location = New Point(10, 255)
-        lblAnnualizedReturn.MinimumSize = New Size(150, 30)
-        lblAnnualizedReturn.Name = "lblAnnualizedReturn"
-        lblAnnualizedReturn.Size = New Size(150, 32)
-        lblAnnualizedReturn.TabIndex = 8
-        lblAnnualizedReturn.Text = "0.0%"
-        ' 
-        ' Label4
-        ' 
-        Label4.AutoSize = True
-        Label4.Font = New Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label4.ForeColor = SystemColors.Desktop
-        Label4.Location = New Point(10, 230)
-        Label4.MinimumSize = New Size(200, 25)
-        Label4.Name = "Label4"
-        Label4.Size = New Size(200, 28)
-        Label4.TabIndex = 7
-        Label4.Text = "Annualized Return"
-        ' 
-        ' lblBasisSpread
-        ' 
-        lblBasisSpread.AutoSize = True
-        lblBasisSpread.Font = New Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        lblBasisSpread.ForeColor = Color.Green
-        lblBasisSpread.Location = New Point(10, 185)
-        lblBasisSpread.MinimumSize = New Size(150, 30)
-        lblBasisSpread.Name = "lblBasisSpread"
-        lblBasisSpread.Size = New Size(150, 38)
-        lblBasisSpread.TabIndex = 6
-        lblBasisSpread.Text = "0.000%"
-        ' 
-        ' Label3
-        ' 
-        Label3.AutoSize = True
-        Label3.Font = New Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label3.ForeColor = SystemColors.Desktop
-        Label3.Location = New Point(10, 160)
-        Label3.MinimumSize = New Size(200, 25)
-        Label3.Name = "Label3"
-        Label3.Size = New Size(206, 28)
-        Label3.TabIndex = 5
-        Label3.Text = "Weekly Basis Spread"
-        ' 
-        ' lblWeeklyFuturesPrice
-        ' 
-        lblWeeklyFuturesPrice.AutoSize = True
-        lblWeeklyFuturesPrice.Font = New Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        lblWeeklyFuturesPrice.ForeColor = Color.Purple
-        lblWeeklyFuturesPrice.Location = New Point(10, 115)
-        lblWeeklyFuturesPrice.MinimumSize = New Size(200, 30)
-        lblWeeklyFuturesPrice.Name = "lblWeeklyFuturesPrice"
-        lblWeeklyFuturesPrice.Size = New Size(200, 38)
-        lblWeeklyFuturesPrice.TabIndex = 4
-        lblWeeklyFuturesPrice.Text = "$0.00"
-        ' 
-        ' Label2
-        ' 
-        Label2.AutoSize = True
-        Label2.Font = New Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label2.ForeColor = SystemColors.Desktop
-        Label2.Location = New Point(10, 90)
-        Label2.MinimumSize = New Size(200, 25)
-        Label2.Name = "Label2"
-        Label2.Size = New Size(210, 28)
-        Label2.TabIndex = 3
-        Label2.Text = "Weekly Futures Price"
-        ' 
-        ' lblSpotPrice
-        ' 
-        lblSpotPrice.AutoSize = True
-        lblSpotPrice.Font = New Font("Segoe UI", 14F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        lblSpotPrice.ForeColor = SystemColors.HotTrack
-        lblSpotPrice.Location = New Point(10, 45)
-        lblSpotPrice.MinimumSize = New Size(200, 25)
-        lblSpotPrice.Name = "lblSpotPrice"
-        lblSpotPrice.Size = New Size(200, 38)
-        lblSpotPrice.TabIndex = 2
-        lblSpotPrice.Text = "$0.00"
-        ' 
-        ' Label1
-        ' 
-        Label1.AutoSize = True
-        Label1.Font = New Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label1.ForeColor = SystemColors.Desktop
-        Label1.Location = New Point(10, 20)
-        Label1.MinimumSize = New Size(200, 25)
-        Label1.Name = "Label1"
-        Label1.Size = New Size(200, 28)
-        Label1.TabIndex = 1
-        Label1.Text = "BTC Spot Price"
-        ' 
-        ' pnlPositionManagement
-        ' 
-        pnlPositionManagement.BackColor = Color.White
-        pnlPositionManagement.Controls.Add(Button1)
-        pnlPositionManagement.Controls.Add(lblBTCBalance)
-        pnlPositionManagement.Controls.Add(grpCurrentPosition)
-        pnlPositionManagement.Controls.Add(grpPositionEntry)
-        pnlPositionManagement.Dock = DockStyle.Fill
-        pnlPositionManagement.Location = New Point(350, 60)
-        pnlPositionManagement.Name = "pnlPositionManagement"
-        pnlPositionManagement.Size = New Size(799, 684)
-        pnlPositionManagement.TabIndex = 2
-        ' 
-        ' Button1
-        ' 
-        Button1.Location = New Point(570, 154)
-        Button1.Name = "Button1"
-        Button1.Size = New Size(112, 34)
-        Button1.TabIndex = 4
-        Button1.Text = "Button1"
-        Button1.UseVisualStyleBackColor = True
-        ' 
-        ' lblBTCBalance
-        ' 
-        lblBTCBalance.AutoSize = True
-        lblBTCBalance.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        lblBTCBalance.ForeColor = SystemColors.Desktop
-        lblBTCBalance.Location = New Point(461, 23)
-        lblBTCBalance.MinimumSize = New Size(200, 25)
-        lblBTCBalance.Name = "lblBTCBalance"
-        lblBTCBalance.Size = New Size(200, 25)
-        lblBTCBalance.TabIndex = 11
-        lblBTCBalance.Text = "BTC Balance:"
-        ' 
-        ' grpCurrentPosition
-        ' 
-        grpCurrentPosition.Controls.Add(btnClosePosition)
-        grpCurrentPosition.Controls.Add(lblDaysToExpiry)
-        grpCurrentPosition.Controls.Add(lblUnrealizedPnL)
-        grpCurrentPosition.Controls.Add(lblPositionStatus)
-        grpCurrentPosition.Location = New Point(10, 194)
-        grpCurrentPosition.Name = "grpCurrentPosition"
-        grpCurrentPosition.Size = New Size(777, 131)
-        grpCurrentPosition.TabIndex = 1
-        grpCurrentPosition.TabStop = False
-        grpCurrentPosition.Text = "Current Position"
-        ' 
-        ' btnClosePosition
-        ' 
-        btnClosePosition.BackColor = Color.LightCoral
-        btnClosePosition.Enabled = False
-        btnClosePosition.Location = New Point(603, 50)
-        btnClosePosition.Name = "btnClosePosition"
-        btnClosePosition.Size = New Size(168, 75)
-        btnClosePosition.TabIndex = 8
-        btnClosePosition.Text = "Close Position"
-        btnClosePosition.UseVisualStyleBackColor = False
-        ' 
-        ' lblDaysToExpiry
-        ' 
-        lblDaysToExpiry.AutoSize = True
-        lblDaysToExpiry.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        lblDaysToExpiry.ForeColor = SystemColors.Desktop
-        lblDaysToExpiry.Location = New Point(15, 75)
-        lblDaysToExpiry.MinimumSize = New Size(200, 25)
-        lblDaysToExpiry.Name = "lblDaysToExpiry"
-        lblDaysToExpiry.Size = New Size(200, 25)
-        lblDaysToExpiry.TabIndex = 7
-        lblDaysToExpiry.Text = "Days to Expiry: --"
-        ' 
-        ' lblUnrealizedPnL
-        ' 
-        lblUnrealizedPnL.AutoSize = True
-        lblUnrealizedPnL.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        lblUnrealizedPnL.ForeColor = SystemColors.Desktop
-        lblUnrealizedPnL.Location = New Point(15, 50)
-        lblUnrealizedPnL.MinimumSize = New Size(200, 25)
-        lblUnrealizedPnL.Name = "lblUnrealizedPnL"
-        lblUnrealizedPnL.Size = New Size(200, 25)
-        lblUnrealizedPnL.TabIndex = 6
-        lblUnrealizedPnL.Text = "Unrealized PL: $0.00"
-        ' 
-        ' lblPositionStatus
-        ' 
-        lblPositionStatus.AutoSize = True
-        lblPositionStatus.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        lblPositionStatus.ForeColor = SystemColors.Desktop
-        lblPositionStatus.Location = New Point(15, 25)
-        lblPositionStatus.MinimumSize = New Size(200, 25)
-        lblPositionStatus.Name = "lblPositionStatus"
-        lblPositionStatus.Size = New Size(200, 25)
-        lblPositionStatus.TabIndex = 5
-        lblPositionStatus.Text = "No active position"
-        ' 
-        ' grpPositionEntry
-        ' 
-        grpPositionEntry.Controls.Add(btnRollPosition)
-        grpPositionEntry.Controls.Add(btnExecuteCashCarry)
-        grpPositionEntry.Controls.Add(nudMinBasisThreshold)
-        grpPositionEntry.Controls.Add(Label6)
-        grpPositionEntry.Controls.Add(nudPositionSize)
-        grpPositionEntry.Controls.Add(Label5)
-        grpPositionEntry.Location = New Point(10, 10)
-        grpPositionEntry.Name = "grpPositionEntry"
-        grpPositionEntry.Size = New Size(400, 178)
-        grpPositionEntry.TabIndex = 0
-        grpPositionEntry.TabStop = False
-        grpPositionEntry.Text = "Position Entry"
-        ' 
-        ' btnRollPosition
-        ' 
-        btnRollPosition.BackColor = Color.LightBlue
-        btnRollPosition.Enabled = False
-        btnRollPosition.Location = New Point(192, 92)
-        btnRollPosition.Name = "btnRollPosition"
-        btnRollPosition.Size = New Size(173, 80)
-        btnRollPosition.TabIndex = 10
-        btnRollPosition.Text = "Roll Position"
-        btnRollPosition.UseVisualStyleBackColor = False
-        ' 
-        ' btnExecuteCashCarry
-        ' 
-        btnExecuteCashCarry.BackColor = Color.LightGreen
-        btnExecuteCashCarry.Enabled = False
-        btnExecuteCashCarry.Location = New Point(15, 92)
-        btnExecuteCashCarry.Name = "btnExecuteCashCarry"
-        btnExecuteCashCarry.Size = New Size(171, 77)
-        btnExecuteCashCarry.TabIndex = 9
-        btnExecuteCashCarry.Text = "Execute Cash-Carry"
-        btnExecuteCashCarry.UseVisualStyleBackColor = False
-        ' 
-        ' nudMinBasisThreshold
-        ' 
-        nudMinBasisThreshold.DecimalPlaces = 4
-        nudMinBasisThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
-        nudMinBasisThreshold.Location = New Point(192, 52)
-        nudMinBasisThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
-        nudMinBasisThreshold.Minimum = New Decimal(New Integer() {1, 0, 0, 262144})
-        nudMinBasisThreshold.Name = "nudMinBasisThreshold"
-        nudMinBasisThreshold.Size = New Size(100, 31)
-        nudMinBasisThreshold.TabIndex = 8
-        nudMinBasisThreshold.Value = New Decimal(New Integer() {2, 0, 0, 196608})
-        ' 
-        ' Label6
-        ' 
-        Label6.AutoSize = True
-        Label6.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        Label6.ForeColor = SystemColors.Desktop
-        Label6.Location = New Point(15, 55)
-        Label6.MinimumSize = New Size(200, 25)
-        Label6.Name = "Label6"
-        Label6.Size = New Size(200, 25)
-        Label6.TabIndex = 7
-        Label6.Text = "Min Basis Threshold:"
-        ' 
-        ' nudPositionSize
-        ' 
-        nudPositionSize.DecimalPlaces = 4
-        nudPositionSize.Increment = New Decimal(New Integer() {1, 0, 0, 196608})
-        nudPositionSize.Location = New Point(192, 22)
-        nudPositionSize.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
-        nudPositionSize.Minimum = New Decimal(New Integer() {1, 0, 0, 196608})
-        nudPositionSize.Name = "nudPositionSize"
-        nudPositionSize.Size = New Size(100, 31)
-        nudPositionSize.TabIndex = 6
-        nudPositionSize.Value = New Decimal(New Integer() {1, 0, 0, 131072})
-        ' 
-        ' Label5
-        ' 
-        Label5.AutoSize = True
-        Label5.Font = New Font("Segoe UI", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        Label5.ForeColor = SystemColors.Desktop
-        Label5.Location = New Point(15, 25)
-        Label5.MinimumSize = New Size(200, 25)
-        Label5.Name = "Label5"
-        Label5.Size = New Size(200, 25)
-        Label5.TabIndex = 4
-        Label5.Text = "Position Size (BTC):"
-        ' 
-        ' pnlTradingLog
-        ' 
-        pnlTradingLog.Controls.Add(btnClearLogs)
-        pnlTradingLog.Controls.Add(txtLogs)
-        pnlTradingLog.Controls.Add(Label7)
-        pnlTradingLog.Dock = DockStyle.Bottom
-        pnlTradingLog.ForeColor = Color.Black
-        pnlTradingLog.Location = New Point(350, 494)
-        pnlTradingLog.Name = "pnlTradingLog"
-        pnlTradingLog.Size = New Size(799, 250)
-        pnlTradingLog.TabIndex = 3
-        ' 
-        ' btnClearLogs
-        ' 
-        btnClearLogs.Location = New Point(700, 0)
-        btnClearLogs.Name = "btnClearLogs"
-        btnClearLogs.Size = New Size(90, 33)
-        btnClearLogs.TabIndex = 9
-        btnClearLogs.Text = "Clear Logs"
-        btnClearLogs.UseVisualStyleBackColor = True
-        ' 
-        ' txtLogs
-        ' 
-        txtLogs.BackColor = Color.Black
-        txtLogs.Font = New Font("Consolas", 9F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        txtLogs.ForeColor = Color.Lime
-        txtLogs.Location = New Point(10, 36)
-        txtLogs.Name = "txtLogs"
-        txtLogs.ReadOnly = True
-        txtLogs.ScrollBars = RichTextBoxScrollBars.Vertical
-        txtLogs.Size = New Size(780, 200)
-        txtLogs.TabIndex = 8
-        txtLogs.Text = ""
-        ' 
-        ' Label7
-        ' 
-        Label7.AutoSize = True
-        Label7.Font = New Font("Segoe UI", 10F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
-        Label7.ForeColor = Color.White
-        Label7.Location = New Point(10, 5)
-        Label7.MinimumSize = New Size(200, 25)
-        Label7.Name = "Label7"
-        Label7.Size = New Size(200, 28)
-        Label7.TabIndex = 7
-        Label7.Text = "Trading Log"
-        ' 
-        ' frmContangoMain
-        ' 
-        AutoScaleDimensions = New SizeF(10F, 25F)
-        AutoScaleMode = AutoScaleMode.Font
-        BackColor = SystemColors.ActiveCaptionText
-        ClientSize = New Size(1149, 744)
-        Controls.Add(pnlTradingLog)
-        Controls.Add(pnlPositionManagement)
-        Controls.Add(pnlMarketData)
-        Controls.Add(pnlConnectionStatus)
-        Name = "frmContangoMain"
-        StartPosition = FormStartPosition.CenterScreen
-        Text = "DeribitContango v0.2 - BTC Basis Trading"
-        pnlConnectionStatus.ResumeLayout(False)
-        pnlConnectionStatus.PerformLayout()
-        pnlMarketData.ResumeLayout(False)
-        pnlMarketData.PerformLayout()
-        pnlPositionManagement.ResumeLayout(False)
-        pnlPositionManagement.PerformLayout()
-        grpCurrentPosition.ResumeLayout(False)
-        grpCurrentPosition.PerformLayout()
-        grpPositionEntry.ResumeLayout(False)
-        grpPositionEntry.PerformLayout()
-        CType(nudMinBasisThreshold, ComponentModel.ISupportInitialize).EndInit()
-        CType(nudPositionSize, ComponentModel.ISupportInitialize).EndInit()
-        pnlTradingLog.ResumeLayout(False)
-        pnlTradingLog.PerformLayout()
-        ResumeLayout(False)
+        Me.grpConnection = New System.Windows.Forms.GroupBox()
+        Me.btnDiscoverWeekly = New System.Windows.Forms.Button()
+        Me.lblConn = New System.Windows.Forms.Label()
+        Me.btnConnect = New System.Windows.Forms.Button()
+        Me.txtClientSecret = New System.Windows.Forms.TextBox()
+        Me.Label2 = New System.Windows.Forms.Label()
+        Me.txtClientId = New System.Windows.Forms.TextBox()
+        Me.Label1 = New System.Windows.Forms.Label()
+        Me.grpMarket = New System.Windows.Forms.GroupBox()
+        Me.lblAnnual = New System.Windows.Forms.Label()
+        Me.Label16 = New System.Windows.Forms.Label()
+        Me.lblBasis = New System.Windows.Forms.Label()
+        Me.Label14 = New System.Windows.Forms.Label()
+        Me.lblFutMark = New System.Windows.Forms.Label()
+        Me.Label12 = New System.Windows.Forms.Label()
+        Me.lblFutAsk = New System.Windows.Forms.Label()
+        Me.lblFutBid = New System.Windows.Forms.Label()
+        Me.Label9 = New System.Windows.Forms.Label()
+        Me.Label8 = New System.Windows.Forms.Label()
+        Me.lblSpotAsk = New System.Windows.Forms.Label()
+        Me.lblSpotBid = New System.Windows.Forms.Label()
+        Me.Label5 = New System.Windows.Forms.Label()
+        Me.Label4 = New System.Windows.Forms.Label()
+        Me.lblIndex = New System.Windows.Forms.Label()
+        Me.Label3 = New System.Windows.Forms.Label()
+        Me.grpTime = New System.Windows.Forms.GroupBox()
+        Me.lblNowMYT = New System.Windows.Forms.Label()
+        Me.lblNowUTC = New System.Windows.Forms.Label()
+        Me.lblExpiryMYT = New System.Windows.Forms.Label()
+        Me.lblExpiryUTC = New System.Windows.Forms.Label()
+        Me.Label20 = New System.Windows.Forms.Label()
+        Me.Label19 = New System.Windows.Forms.Label()
+        Me.Label18 = New System.Windows.Forms.Label()
+        Me.Label17 = New System.Windows.Forms.Label()
+        Me.grpEntry = New System.Windows.Forms.GroupBox()
+        Me.numSlippageBps = New System.Windows.Forms.NumericUpDown()
+        Me.Label23 = New System.Windows.Forms.Label()
+        Me.numThreshold = New System.Windows.Forms.NumericUpDown()
+        Me.Label22 = New System.Windows.Forms.Label()
+        Me.btnCloseAll = New System.Windows.Forms.Button()
+        Me.btnRoll = New System.Windows.Forms.Button()
+        Me.btnEnter = New System.Windows.Forms.Button()
+        Me.txtAmount = New System.Windows.Forms.TextBox()
+        Me.lblAmountUnits = New System.Windows.Forms.Label()
+        Me.radBTC = New System.Windows.Forms.RadioButton()
+        Me.radUSD = New System.Windows.Forms.RadioButton()
+        Me.Label21 = New System.Windows.Forms.Label()
+        Me.grpLog = New System.Windows.Forms.GroupBox()
+        Me.txtLog = New System.Windows.Forms.RichTextBox()
+        Me.grpConnection.SuspendLayout()
+        Me.grpMarket.SuspendLayout()
+        Me.grpTime.SuspendLayout()
+        Me.grpEntry.SuspendLayout()
+        CType(Me.numSlippageBps, System.ComponentModel.ISupportInitialize).BeginInit()
+        CType(Me.numThreshold, System.ComponentModel.ISupportInitialize).BeginInit()
+        Me.grpLog.SuspendLayout()
+        Me.SuspendLayout()
+        '
+        'grpConnection
+        '
+        Me.grpConnection.Controls.Add(Me.btnDiscoverWeekly)
+        Me.grpConnection.Controls.Add(Me.lblConn)
+        Me.grpConnection.Controls.Add(Me.btnConnect)
+        Me.grpConnection.Controls.Add(Me.txtClientSecret)
+        Me.grpConnection.Controls.Add(Me.Label2)
+        Me.grpConnection.Controls.Add(Me.txtClientId)
+        Me.grpConnection.Controls.Add(Me.Label1)
+        Me.grpConnection.Location = New System.Drawing.Point(12, 12)
+        Me.grpConnection.Name = "grpConnection"
+        Me.grpConnection.Size = New System.Drawing.Size(776, 86)
+        Me.grpConnection.TabIndex = 0
+        Me.grpConnection.TabStop = False
+        Me.grpConnection.Text = "Connection"
+        '
+        'btnDiscoverWeekly
+        '
+        Me.btnDiscoverWeekly.Location = New System.Drawing.Point(677, 19)
+        Me.btnDiscoverWeekly.Name = "btnDiscoverWeekly"
+        Me.btnDiscoverWeekly.Size = New System.Drawing.Size(93, 23)
+        Me.btnDiscoverWeekly.TabIndex = 6
+        Me.btnDiscoverWeekly.Text = "Discover Weekly"
+        Me.btnDiscoverWeekly.UseVisualStyleBackColor = True
+        '
+        'lblConn
+        '
+        Me.lblConn.AutoSize = True
+        Me.lblConn.Location = New System.Drawing.Point(13, 56)
+        Me.lblConn.Name = "lblConn"
+        Me.lblConn.Size = New System.Drawing.Size(113, 15)
+        Me.lblConn.TabIndex = 5
+        Me.lblConn.Text = "Disconnected (WS)"
+        '
+        'btnConnect
+        '
+        Me.btnConnect.Location = New System.Drawing.Point(596, 19)
+        Me.btnConnect.Name = "btnConnect"
+        Me.btnConnect.Size = New System.Drawing.Size(75, 23)
+        Me.btnConnect.TabIndex = 4
+        Me.btnConnect.Text = "Connect"
+        Me.btnConnect.UseVisualStyleBackColor = True
+        '
+        'txtClientSecret
+        '
+        Me.txtClientSecret.Location = New System.Drawing.Point(359, 20)
+        Me.txtClientSecret.Name = "txtClientSecret"
+        Me.txtClientSecret.PasswordChar = Global.Microsoft.VisualBasic.ChrW(42)
+        Me.txtClientSecret.Size = New System.Drawing.Size(231, 23)
+        Me.txtClientSecret.TabIndex = 3
+        '
+        'Label2
+        '
+        Me.Label2.AutoSize = True
+        Me.Label2.Location = New System.Drawing.Point(279, 23)
+        Me.Label2.Name = "Label2"
+        Me.Label2.Size = New System.Drawing.Size(74, 15)
+        Me.Label2.TabIndex = 2
+        Me.Label2.Text = "ClientSecret"
+        '
+        'txtClientId
+        '
+        Me.txtClientId.Location = New System.Drawing.Point(77, 20)
+        Me.txtClientId.Name = "txtClientId"
+        Me.txtClientId.Size = New System.Drawing.Size(196, 23)
+        Me.txtClientId.TabIndex = 1
+        '
+        'Label1
+        '
+        Me.Label1.AutoSize = True
+        Me.Label1.Location = New System.Drawing.Point(13, 23)
+        Me.Label1.Name = "Label1"
+        Me.Label1.Size = New System.Drawing.Size(50, 15)
+        Me.Label1.TabIndex = 0
+        Me.Label1.Text = "ClientID"
+        '
+        'grpMarket
+        '
+        Me.grpMarket.Controls.Add(Me.lblAnnual)
+        Me.grpMarket.Controls.Add(Me.Label16)
+        Me.grpMarket.Controls.Add(Me.lblBasis)
+        Me.grpMarket.Controls.Add(Me.Label14)
+        Me.grpMarket.Controls.Add(Me.lblFutMark)
+        Me.grpMarket.Controls.Add(Me.Label12)
+        Me.grpMarket.Controls.Add(Me.lblFutAsk)
+        Me.grpMarket.Controls.Add(Me.lblFutBid)
+        Me.grpMarket.Controls.Add(Me.Label9)
+        Me.grpMarket.Controls.Add(Me.Label8)
+        Me.grpMarket.Controls.Add(Me.lblSpotAsk)
+        Me.grpMarket.Controls.Add(Me.lblSpotBid)
+        Me.grpMarket.Controls.Add(Me.Label5)
+        Me.grpMarket.Controls.Add(Me.Label4)
+        Me.grpMarket.Controls.Add(Me.lblIndex)
+        Me.grpMarket.Controls.Add(Me.Label3)
+        Me.grpMarket.Location = New System.Drawing.Point(12, 104)
+        Me.grpMarket.Name = "grpMarket"
+        Me.grpMarket.Size = New System.Drawing.Size(776, 114)
+        Me.grpMarket.TabIndex = 1
+        Me.grpMarket.TabStop = False
+        Me.grpMarket.Text = "Market"
+        '
+        'lblAnnual
+        '
+        Me.lblAnnual.AutoSize = True
+        Me.lblAnnual.Location = New System.Drawing.Point(628, 74)
+        Me.lblAnnual.Name = "lblAnnual"
+        Me.lblAnnual.Size = New System.Drawing.Size(37, 15)
+        Me.lblAnnual.TabIndex = 15
+        Me.lblAnnual.Text = "0.00%"
+        '
+        'Label16
+        '
+        Me.Label16.AutoSize = True
+        Me.Label16.Location = New System.Drawing.Point(570, 74)
+        Me.Label16.Name = "Label16"
+        Me.Label16.Size = New System.Drawing.Size(52, 15)
+        Me.Label16.TabIndex = 14
+        Me.Label16.Text = "Annual:"
+        '
+        'lblBasis
+        '
+        Me.lblBasis.AutoSize = True
+        Me.lblBasis.Location = New System.Drawing.Point(628, 48)
+        Me.lblBasis.Name = "lblBasis"
+        Me.lblBasis.Size = New System.Drawing.Size(37, 15)
+        Me.lblBasis.TabIndex = 13
+        Me.lblBasis.Text = "0.00%"
+        '
+        'Label14
+        '
+        Me.Label14.AutoSize = True
+        Me.Label14.Location = New System.Drawing.Point(581, 48)
+        Me.Label14.Name = "Label14"
+        Me.Label14.Size = New System.Drawing.Size(41, 15)
+        Me.Label14.TabIndex = 12
+        Me.Label14.Text = "Basis:"
+        '
+        'lblFutMark
+        '
+        Me.lblFutMark.AutoSize = True
+        Me.lblFutMark.Location = New System.Drawing.Point(384, 74)
+        Me.lblFutMark.Name = "lblFutMark"
+        Me.lblFutMark.Size = New System.Drawing.Size(34, 15)
+        Me.lblFutMark.TabIndex = 11
+        Me.lblFutMark.Text = "0.00"
+        '
+        'Label12
+        '
+        Me.Label12.AutoSize = True
+        Me.Label12.Location = New System.Drawing.Point(311, 74)
+        Me.Label12.Name = "Label12"
+        Me.Label12.Size = New System.Drawing.Size(67, 15)
+        Me.Label12.TabIndex = 10
+        Me.Label12.Text = "Fut Mark:"
+        '
+        'lblFutAsk
+        '
+        Me.lblFutAsk.AutoSize = True
+        Me.lblFutAsk.Location = New System.Drawing.Point(384, 48)
+        Me.lblFutAsk.Name = "lblFutAsk"
+        Me.lblFutAsk.Size = New System.Drawing.Size(34, 15)
+        Me.lblFutAsk.TabIndex = 9
+        Me.lblFutAsk.Text = "0.00"
+        '
+        'lblFutBid
+        '
+        Me.lblFutBid.AutoSize = True
+        Me.lblFutBid.Location = New System.Drawing.Point(384, 23)
+        Me.lblFutBid.Name = "lblFutBid"
+        Me.lblFutBid.Size = New System.Drawing.Size(34, 15)
+        Me.lblFutBid.TabIndex = 8
+        Me.lblFutBid.Text = "0.00"
+        '
+        'Label9
+        '
+        Me.Label9.AutoSize = True
+        Me.Label9.Location = New System.Drawing.Point(318, 48)
+        Me.Label9.Name = "Label9"
+        Me.Label9.Size = New System.Drawing.Size(60, 15)
+        Me.Label9.TabIndex = 7
+        Me.Label9.Text = "Fut Ask:"
+        '
+        'Label8
+        '
+        Me.Label8.AutoSize = True
+        Me.Label8.Location = New System.Drawing.Point(320, 23)
+        Me.Label8.Name = "Label8"
+        Me.Label8.Size = New System.Drawing.Size(58, 15)
+        Me.Label8.TabIndex = 6
+        Me.Label8.Text = "Fut Bid:"
+        '
+        'lblSpotAsk
+        '
+        Me.lblSpotAsk.AutoSize = True
+        Me.lblSpotAsk.Location = New System.Drawing.Point(77, 74)
+        Me.lblSpotAsk.Name = "lblSpotAsk"
+        Me.lblSpotAsk.Size = New System.Drawing.Size(34, 15)
+        Me.lblSpotAsk.TabIndex = 5
+        Me.lblSpotAsk.Text = "0.00"
+        '
+        'lblSpotBid
+        '
+        Me.lblSpotBid.AutoSize = True
+        Me.lblSpotBid.Location = New System.Drawing.Point(77, 48)
+        Me.lblSpotBid.Name = "lblSpotBid"
+        Me.lblSpotBid.Size = New System.Drawing.Size(34, 15)
+        Me.lblSpotBid.TabIndex = 4
+        Me.lblSpotBid.Text = "0.00"
+        '
+        'Label5
+        '
+        Me.Label5.AutoSize = True
+        Me.Label5.Location = New System.Drawing.Point(9, 74)
+        Me.Label5.Name = "Label5"
+        Me.Label5.Size = New System.Drawing.Size(62, 15)
+        Me.Label5.TabIndex = 3
+        Me.Label5.Text = "Spot Ask:"
+        '
+        'Label4
+        '
+        Me.Label4.AutoSize = True
+        Me.Label4.Location = New System.Drawing.Point(11, 48)
+        Me.Label4.Name = "Label4"
+        Me.Label4.Size = New System.Drawing.Size(60, 15)
+        Me.Label4.TabIndex = 2
+        Me.Label4.Text = "Spot Bid:"
+        '
+        'lblIndex
+        '
+        Me.lblIndex.AutoSize = True
+        Me.lblIndex.Location = New System.Drawing.Point(77, 23)
+        Me.lblIndex.Name = "lblIndex"
+        Me.lblIndex.Size = New System.Drawing.Size(34, 15)
+        Me.lblIndex.TabIndex = 1
+        Me.lblIndex.Text = "0.00"
+        '
+        'Label3
+        '
+        Me.Label3.AutoSize = True
+        Me.Label3.Location = New System.Drawing.Point(26, 23)
+        Me.Label3.Name = "Label3"
+        Me.Label3.Size = New System.Drawing.Size(45, 15)
+        Me.Label3.TabIndex = 0
+        Me.Label3.Text = "Index:"
+        '
+        'grpTime
+        '
+        Me.grpTime.Controls.Add(Me.lblNowMYT)
+        Me.grpTime.Controls.Add(Me.lblNowUTC)
+        Me.grpTime.Controls.Add(Me.lblExpiryMYT)
+        Me.grpTime.Controls.Add(Me.lblExpiryUTC)
+        Me.grpTime.Controls.Add(Me.Label20)
+        Me.grpTime.Controls.Add(Me.Label19)
+        Me.grpTime.Controls.Add(Me.Label18)
+        Me.grpTime.Controls.Add(Me.Label17)
+        Me.grpTime.Location = New System.Drawing.Point(12, 224)
+        Me.grpTime.Name = "grpTime"
+        Me.grpTime.Size = New System.Drawing.Size(776, 92)
+        Me.grpTime.TabIndex = 2
+        Me.grpTime.TabStop = False
+        Me.grpTime.Text = "Time / Expiry"
+        '
+        'lblNowMYT
+        '
+        Me.lblNowMYT.AutoSize = True
+        Me.lblNowMYT.Location = New System.Drawing.Point(512, 58)
+        Me.lblNowMYT.Name = "lblNowMYT"
+        Me.lblNowMYT.Size = New System.Drawing.Size(168, 15)
+        Me.lblNowMYT.TabIndex = 7
+        Me.lblNowMYT.Text = "0000-00-00 00:00:00 (MYT)"
+        '
+        'lblNowUTC
+        '
+        Me.lblNowUTC.AutoSize = True
+        Me.lblNowUTC.Location = New System.Drawing.Point(512, 28)
+        Me.lblNowUTC.Name = "lblNowUTC"
+        Me.lblNowUTC.Size = New System.Drawing.Size(169, 15)
+        Me.lblNowUTC.TabIndex = 6
+        Me.lblNowUTC.Text = "0000-00-00 00:00:00 (UTC)"
+        '
+        'lblExpiryMYT
+        '
+        Me.lblExpiryMYT.AutoSize = True
+        Me.lblExpiryMYT.Location = New System.Drawing.Point(109, 58)
+        Me.lblExpiryMYT.Name = "lblExpiryMYT"
+        Me.lblExpiryMYT.Size = New System.Drawing.Size(168, 15)
+        Me.lblExpiryMYT.TabIndex = 5
+        Me.lblExpiryMYT.Text = "0000-00-00 00:00:00 (MYT)"
+        '
+        'lblExpiryUTC
+        '
+        Me.lblExpiryUTC.AutoSize = True
+        Me.lblExpiryUTC.Location = New System.Drawing.Point(109, 28)
+        Me.lblExpiryUTC.Name = "lblExpiryUTC"
+        Me.lblExpiryUTC.Size = New System.Drawing.Size(169, 15)
+        Me.lblExpiryUTC.TabIndex = 4
+        Me.lblExpiryUTC.Text = "0000-00-00 00:00:00 (UTC)"
+        '
+        'Label20
+        '
+        Me.Label20.AutoSize = True
+        Me.Label20.Location = New System.Drawing.Point(443, 58)
+        Me.Label20.Name = "Label20"
+        Me.Label20.Size = New System.Drawing.Size(63, 15)
+        Me.Label20.TabIndex = 3
+        Me.Label20.Text = "Now MYT:"
+        '
+        'Label19
+        '
+        Me.Label19.AutoSize = True
+        Me.Label19.Location = New System.Drawing.Point(444, 28)
+        Me.Label19.Name = "Label19"
+        Me.Label19.Size = New System.Drawing.Size(62, 15)
+        Me.Label19.TabIndex = 2
+        Me.Label19.Text = "Now UTC:"
+        '
+        'Label18
+        '
+        Me.Label18.AutoSize = True
+        Me.Label18.Location = New System.Drawing.Point(32, 58)
+        Me.Label18.Name = "Label18"
+        Me.Label18.Size = New System.Drawing.Size(71, 15)
+        Me.Label18.TabIndex = 1
+        Me.Label18.Text = "Expiry MYT:"
+        '
+        'Label17
+        '
+        Me.Label17.AutoSize = True
+        Me.Label17.Location = New System.Drawing.Point(33, 28)
+        Me.Label17.Name = "Label17"
+        Me.Label17.Size = New System.Drawing.Size(70, 15)
+        Me.Label17.TabIndex = 0
+        Me.Label17.Text = "Expiry UTC:"
+        '
+        'grpEntry
+        '
+        Me.grpEntry.Controls.Add(Me.numSlippageBps)
+        Me.grpEntry.Controls.Add(Me.Label23)
+        Me.grpEntry.Controls.Add(Me.numThreshold)
+        Me.grpEntry.Controls.Add(Me.Label22)
+        Me.grpEntry.Controls.Add(Me.btnCloseAll)
+        Me.grpEntry.Controls.Add(Me.btnRoll)
+        Me.grpEntry.Controls.Add(Me.btnEnter)
+        Me.grpEntry.Controls.Add(Me.txtAmount)
+        Me.grpEntry.Controls.Add(Me.lblAmountUnits)
+        Me.grpEntry.Controls.Add(Me.radBTC)
+        Me.grpEntry.Controls.Add(Me.radUSD)
+        Me.grpEntry.Controls.Add(Me.Label21)
+        Me.grpEntry.Location = New System.Drawing.Point(12, 322)
+        Me.grpEntry.Name = "grpEntry"
+        Me.grpEntry.Size = New System.Drawing.Size(776, 106)
+        Me.grpEntry.TabIndex = 3
+        Me.grpEntry.TabStop = False
+        Me.grpEntry.Text = "Entry / Risk"
+        '
+        'numSlippageBps
+        '
+        Me.numSlippageBps.DecimalPlaces = 0
+        Me.numSlippageBps.Increment = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.numSlippageBps.Location = New System.Drawing.Point(542, 62)
+        Me.numSlippageBps.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
+        Me.numSlippageBps.Minimum = New Decimal(New Integer() {0, 0, 0, 0})
+        Me.numSlippageBps.Name = "numSlippageBps"
+        Me.numSlippageBps.Size = New System.Drawing.Size(68, 23)
+        Me.numSlippageBps.TabIndex = 11
+        Me.numSlippageBps.Value = New Decimal(New Integer() {5, 0, 0, 0})
+        '
+        'Label23
+        '
+        Me.Label23.AutoSize = True
+        Me.Label23.Location = New System.Drawing.Point(444, 64)
+        Me.Label23.Name = "Label23"
+        Me.Label23.Size = New System.Drawing.Size(92, 15)
+        Me.Label23.TabIndex = 10
+        Me.Label23.Text = "Max Slippage bps"
+        '
+        'numThreshold
+        '
+        Me.numThreshold.DecimalPlaces = 4
+        Me.numThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
+        Me.numThreshold.Location = New System.Drawing.Point(542, 28)
+        Me.numThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        Me.numThreshold.Minimum = New Decimal(New Integer() {0, 0, 0, 0})
+        Me.numThreshold.Name = "numThreshold"
+        Me.numThreshold.Size = New System.Drawing.Size(68, 23)
+        Me.numThreshold.TabIndex = 9
+        Me.numThreshold.Value = New Decimal(New Integer() {25, 0, 0, 262144})
+        '
+        'Label22
+        '
+        Me.Label22.AutoSize = True
+        Me.Label22.Location = New System.Drawing.Point(452, 30)
+        Me.Label22.Name = "Label22"
+        Me.Label22.Size = New System.Drawing.Size(84, 15)
+        Me.Label22.TabIndex = 8
+        Me.Label22.Text = "Entry Threshold"
+        '
+        'btnCloseAll
+        '
+        Me.btnCloseAll.Location = New System.Drawing.Point(661, 62)
+        Me.btnCloseAll.Name = "btnCloseAll"
+        Me.btnCloseAll.Size = New System.Drawing.Size(109, 23)
+        Me.btnCloseAll.TabIndex = 7
+        Me.btnCloseAll.Text = "Close All"
+        Me.btnCloseAll.UseVisualStyleBackColor = True
+        '
+        'btnRoll
+        '
+        Me.btnRoll.Location = New System.Drawing.Point(661, 22)
+        Me.btnRoll.Name = "btnRoll"
+        Me.btnRoll.Size = New System.Drawing.Size(109, 23)
+        Me.btnRoll.TabIndex = 6
+        Me.btnRoll.Text = "Roll to Next"
+        Me.btnRoll.UseVisualStyleBackColor = True
+        '
+        'btnEnter
+        '
+        Me.btnEnter.Location = New System.Drawing.Point(350, 27)
+        Me.btnEnter.Name = "btnEnter"
+        Me.btnEnter.Size = New System.Drawing.Size(85, 58)
+        Me.btnEnter.TabIndex = 5
+        Me.btnEnter.Text = "Enter Basis"
+        Me.btnEnter.UseVisualStyleBackColor = True
+        '
+        'txtAmount
+        '
+        Me.txtAmount.Location = New System.Drawing.Point(86, 62)
+        Me.txtAmount.Name = "txtAmount"
+        Me.txtAmount.Size = New System.Drawing.Size(243, 23)
+        Me.txtAmount.TabIndex = 4
+        Me.txtAmount.Text = "1000"
+        '
+        'lblAmountUnits
+        '
+        Me.lblAmountUnits.AutoSize = True
+        Me.lblAmountUnits.Location = New System.Drawing.Point(13, 65)
+        Me.lblAmountUnits.Name = "lblAmountUnits"
+        Me.lblAmountUnits.Size = New System.Drawing.Size(67, 15)
+        Me.lblAmountUnits.TabIndex = 3
+        Me.lblAmountUnits.Text = "Amount USD"
+        '
+        'radBTC
+        '
+        Me.radBTC.AutoSize = True
+        Me.radBTC.Location = New System.Drawing.Point(153, 28)
+        Me.radBTC.Name = "radBTC"
+        Me.radBTC.Size = New System.Drawing.Size(48, 19)
+        Me.radBTC.TabIndex = 2
+        Me.radBTC.Text = "BTC"
+        Me.radBTC.UseVisualStyleBackColor = True
+        '
+        'radUSD
+        '
+        Me.radUSD.AutoSize = True
+        Me.radUSD.Checked = True
+        Me.radUSD.Location = New System.Drawing.Point(86, 28)
+        Me.radUSD.Name = "radUSD"
+        Me.radUSD.Size = New System.Drawing.Size(49, 19)
+        Me.radUSD.TabIndex = 1
+        Me.radUSD.TabStop = True
+        Me.radUSD.Text = "USD"
+        Me.radUSD.UseVisualStyleBackColor = True
+        '
+        'Label21
+        '
+        Me.Label21.AutoSize = True
+        Me.Label21.Location = New System.Drawing.Point(13, 30)
+        Me.Label21.Name = "Label21"
+        Me.Label21.Size = New System.Drawing.Size(67, 15)
+        Me.Label21.TabIndex = 0
+        Me.Label21.Text = "Size Input:"
+        '
+        'grpLog
+        '
+        Me.grpLog.Controls.Add(Me.txtLog)
+        Me.grpLog.Location = New System.Drawing.Point(12, 434)
+        Me.grpLog.Name = "grpLog"
+        Me.grpLog.Size = New System.Drawing.Size(776, 204)
+        Me.grpLog.TabIndex = 4
+        Me.grpLog.TabStop = False
+        Me.grpLog.Text = "Log"
+        '
+        'txtLog
+        '
+        Me.txtLog.Dock = System.Windows.Forms.DockStyle.Fill
+        Me.txtLog.Location = New System.Drawing.Point(3, 19)
+        Me.txtLog.Name = "txtLog"
+        Me.txtLog.Size = New System.Drawing.Size(770, 182)
+        Me.txtLog.TabIndex = 0
+        Me.txtLog.Text = ""
+        '
+        'frmContangoMain
+        '
+        Me.AutoScaleDimensions = New System.Drawing.SizeF(7.0!, 15.0!)
+        Me.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font
+        Me.ClientSize = New System.Drawing.Size(800, 650)
+        Me.Controls.Add(Me.grpLog)
+        Me.Controls.Add(Me.grpEntry)
+        Me.Controls.Add(Me.grpTime)
+        Me.Controls.Add(Me.grpMarket)
+        Me.Controls.Add(Me.grpConnection)
+        Me.Name = "frmContangoMain"
+        Me.Text = "Deribit Contango Basis Trader"
+        Me.grpConnection.ResumeLayout(False)
+        Me.grpConnection.PerformLayout()
+        Me.grpMarket.ResumeLayout(False)
+        Me.grpMarket.PerformLayout()
+        Me.grpTime.ResumeLayout(False)
+        Me.grpTime.PerformLayout()
+        Me.grpEntry.ResumeLayout(False)
+        Me.grpEntry.PerformLayout()
+        CType(Me.numSlippageBps, System.ComponentModel.ISupportInitialize).EndInit()
+        CType(Me.numThreshold, System.ComponentModel.ISupportInitialize).EndInit()
+        Me.grpLog.ResumeLayout(False)
+        Me.ResumeLayout(False)
+
     End Sub
 
-    Friend WithEvents pnlConnectionStatus As Panel
-    Friend WithEvents lblConnectionStatus As Label
-    Friend WithEvents lblLastUpdate As Label
-    Friend WithEvents lblRateLimit As Label
-    Friend WithEvents pnlMarketData As Panel
-    Friend WithEvents Label3 As Label
-    Friend WithEvents lblWeeklyFuturesPrice As Label
+    Friend WithEvents grpConnection As GroupBox
+    Friend WithEvents btnDiscoverWeekly As Button
+    Friend WithEvents lblConn As Label
+    Friend WithEvents btnConnect As Button
+    Friend WithEvents txtClientSecret As TextBox
     Friend WithEvents Label2 As Label
-    Friend WithEvents lblSpotPrice As Label
+    Friend WithEvents txtClientId As TextBox
     Friend WithEvents Label1 As Label
-    Friend WithEvents lblAnnualizedReturn As Label
-    Friend WithEvents Label4 As Label
-    Friend WithEvents lblBasisSpread As Label
-    Friend WithEvents pnlPositionManagement As Panel
-    Friend WithEvents grpPositionEntry As GroupBox
+    Friend WithEvents grpMarket As GroupBox
+    Friend WithEvents lblAnnual As Label
+    Friend WithEvents Label16 As Label
+    Friend WithEvents lblBasis As Label
+    Friend WithEvents Label14 As Label
+    Friend WithEvents lblFutMark As Label
+    Friend WithEvents Label12 As Label
+    Friend WithEvents lblFutAsk As Label
+    Friend WithEvents lblFutBid As Label
+    Friend WithEvents Label9 As Label
+    Friend WithEvents Label8 As Label
+    Friend WithEvents lblSpotAsk As Label
+    Friend WithEvents lblSpotBid As Label
     Friend WithEvents Label5 As Label
-    Friend WithEvents btnExecuteCashCarry As Button
-    Friend WithEvents nudMinBasisThreshold As NumericUpDown
-    Friend WithEvents Label6 As Label
-    Friend WithEvents nudPositionSize As NumericUpDown
-    Friend WithEvents grpCurrentPosition As GroupBox
-    Friend WithEvents lblPositionStatus As Label
-    Friend WithEvents btnRollPosition As Button
-    Friend WithEvents btnClosePosition As Button
-    Friend WithEvents lblDaysToExpiry As Label
-    Friend WithEvents lblUnrealizedPnL As Label
-    Friend WithEvents pnlTradingLog As Panel
-    Friend WithEvents btnClearLogs As Button
-    Friend WithEvents txtLogs As RichTextBox
-    Friend WithEvents Label7 As Label
-    Friend WithEvents lblUptime As Label
-    Friend WithEvents lblLatency As Label
-    Friend WithEvents lblBTCBalance As Label
-    Friend WithEvents Button1 As Button
+    Friend WithEvents Label4 As Label
+    Friend WithEvents lblIndex As Label
+    Friend WithEvents Label3 As Label
+    Friend WithEvents grpTime As GroupBox
+    Friend WithEvents lblNowMYT As Label
+    Friend WithEvents lblNowUTC As Label
+    Friend WithEvents lblExpiryMYT As Label
+    Friend WithEvents lblExpiryUTC As Label
+    Friend WithEvents Label20 As Label
+    Friend WithEvents Label19 As Label
+    Friend WithEvents Label18 As Label
+    Friend WithEvents Label17 As Label
+    Friend WithEvents grpEntry As GroupBox
+    Friend WithEvents numSlippageBps As NumericUpDown
+    Friend WithEvents Label23 As Label
+    Friend WithEvents numThreshold As NumericUpDown
+    Friend WithEvents Label22 As Label
+    Friend WithEvents btnCloseAll As Button
+    Friend WithEvents btnRoll As Button
+    Friend WithEvents btnEnter As Button
+    Friend WithEvents txtAmount As TextBox
+    Friend WithEvents lblAmountUnits As Label
+    Friend WithEvents radBTC As RadioButton
+    Friend WithEvents radUSD As RadioButton
+    Friend WithEvents Label21 As Label
+    Friend WithEvents grpLog As GroupBox
+    Friend WithEvents txtLog As RichTextBox
 End Class

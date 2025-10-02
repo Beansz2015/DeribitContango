@@ -51,11 +51,13 @@ Public Class frmContangoMain
             AppendLog("Authorized; subscribing channels...")
 
             Await _api.SubscribePrivateAsync({
-              "user.orders.btc",
-              "user.trades.btc",
-              "user.orders.usdc",
-              "user.trades.usdc"
-            })
+  "user.orders.BTC",
+  "user.trades.BTC",
+  "user.orders.USDC",
+  "user.trades.USDC"
+})
+
+
 
             Await _api.SubscribePublicAsync({
               "deribit_price_index.btc_usd",
@@ -189,15 +191,12 @@ Public Class frmContangoMain
     End Sub
 
     Private Sub OnOrderUpdate(currency As String, payload As JObject)
-        Dim sb As New StringBuilder()
-        sb.Append($"ORDER {currency} ")
-        sb.Append(payload.Value(Of String)("order_id"))
-        sb.Append(" ")
-        sb.Append(payload.Value(Of String)("state"))
-        sb.Append(" ")
-        sb.Append(payload.Value(Of String)("instrument_name"))
-        AppendLog(sb.ToString())
+        Dim st = payload.Value(Of String)("state")
+        If String.IsNullOrEmpty(st) Then st = payload.Value(Of String)("order_state")
+        Dim line = $"ORDER {currency} {payload.Value(Of String)("order_id")} {st} {payload.Value(Of String)("instrument_name")}"
+        AppendLog(line)
     End Sub
+
 
     Private Sub OnTradeUpdate(currency As String, payload As JObject)
         Dim instr = payload.Value(Of String)("instrument_name")

@@ -623,7 +623,7 @@ Partial Class frmContangoMain
         ' 
         ' frmContangoMain
         ' 
-        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
+        AutoScaleDimensions = New SizeF(10F, 25F)
         AutoScaleMode = AutoScaleMode.Font
         ClientSize = New Size(1143, 1083)
         Controls.Add(grpLog)
@@ -633,7 +633,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.1"
+        Text = "Deribit Contango Basis Trader - V1.2"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)

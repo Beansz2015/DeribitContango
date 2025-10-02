@@ -195,6 +195,7 @@ Namespace DeribitContango
 
                 Dim idTok = msg("id")
                 Dim methodTok = msg("method")
+
                 If idTok IsNot Nothing AndAlso idTok.Type = JTokenType.Integer Then
                     Dim id = idTok.Value(Of Integer)()
                     Dim tcs As TaskCompletionSource(Of JToken) = Nothing
@@ -205,23 +206,67 @@ Namespace DeribitContango
                             tcs.SetResult(msg)
                         End If
                     End If
+
                 ElseIf methodTok IsNot Nothing Then
                     Dim m = methodTok.Value(Of String)()
                     Dim paramsObj = msg("params")?.Value(Of JObject)()
                     If m = "subscription" AndAlso paramsObj IsNot Nothing Then
                         Dim ch = paramsObj.Value(Of String)("channel")
-                        Dim data = paramsObj("data")?.Value(Of JObject)()
-                        If Not String.IsNullOrEmpty(ch) AndAlso data IsNot Nothing Then
-                            If ch.StartsWith("user.orders.") Then
-                                Dim parts = ch.Split("."c)
-                                Dim currency = parts.Last()
-                                RaiseEvent OrderUpdate(currency, data)
-                            ElseIf ch.StartsWith("user.trades.") Then
-                                Dim parts = ch.Split("."c)
-                                Dim currency = parts.Last()
-                                RaiseEvent TradeUpdate(currency, data)
-                            Else
-                                RaiseEvent PublicMessage(ch, data)
+                        Dim dataTok = paramsObj("data")
+                        If String.IsNullOrEmpty(ch) OrElse dataTok Is Nothing Then
+                            Continue While
+                        End If
+
+                        ' Per-object raisers with normalization for user.trades
+                        Dim raiseOrder As Action(Of String, JObject) =
+          Sub(cur As String, obj As JObject)
+              RaiseEvent OrderUpdate(cur, obj)
+          End Sub
+
+                        Dim raiseTrade As Action(Of String, JObject) =
+          Sub(cur As String, obj As JObject)
+              If obj Is Nothing Then Return
+              ' Normalize to { instrument_name, trades:[obj] } if not already wrapped
+              If obj("trades") Is Nothing Then
+                  Dim instr = obj.Value(Of String)("instrument_name")
+                  Dim wrapper As New JObject From {
+                {"instrument_name", instr},
+                {"trades", New JArray(obj)}
+              }
+                  RaiseEvent TradeUpdate(cur, wrapper)
+              Else
+                  RaiseEvent TradeUpdate(cur, obj)
+              End If
+          End Sub
+
+                        If ch.StartsWith("user.orders.", StringComparison.OrdinalIgnoreCase) Then
+                            Dim currency = ch.Split("."c).Last()
+                            If dataTok.Type = JTokenType.Array Then
+                                For Each item In CType(dataTok, JArray)
+                                    If item.Type = JTokenType.Object Then
+                                        raiseOrder(currency, CType(item, JObject))
+                                    End If
+                                Next
+                            ElseIf dataTok.Type = JTokenType.Object Then
+                                raiseOrder(currency, CType(dataTok, JObject))
+                            End If
+
+                        ElseIf ch.StartsWith("user.trades.", StringComparison.OrdinalIgnoreCase) Then
+                            Dim currency = ch.Split("."c).Last()
+                            If dataTok.Type = JTokenType.Array Then
+                                For Each item In CType(dataTok, JArray)
+                                    If item.Type = JTokenType.Object Then
+                                        raiseTrade(currency, CType(item, JObject))
+                                    End If
+                                Next
+                            ElseIf dataTok.Type = JTokenType.Object Then
+                                raiseTrade(currency, CType(dataTok, JObject))
+                            End If
+
+                        Else
+                            ' Public channels
+                            If dataTok.Type = JTokenType.Object Then
+                                RaiseEvent PublicMessage(ch, CType(dataTok, JObject))
                             End If
                         End If
                     End If
@@ -231,6 +276,7 @@ Namespace DeribitContango
             _connected = False
             RaiseEvent ConnectionStateChanged(False)
         End Function
+
 
         Public Sub Dispose() Implements IDisposable.Dispose
             Try

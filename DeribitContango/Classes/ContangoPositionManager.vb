@@ -150,8 +150,8 @@ Namespace DeribitContango
 
         ' Entry: SPOT FIRST (BTC_USDC IOC), then FUTURES short post_only; IOC fallback after timeout
         Public Async Function EnterBasisAsync(indexPrice As Decimal,
-                                              futBestBid As Decimal,
-                                              spotBestAsk As Decimal) As Task
+                                      futBestBid As Decimal,
+                                      spotBestAsk As Decimal) As Task
             Dim inputs = NormalizeInputs(indexPrice)
             Dim usdN As Decimal = inputs.targetUsd
             Dim btcN As Decimal = inputs.targetBtc
@@ -179,25 +179,93 @@ Namespace DeribitContango
             End If
 
             Dim spotOrder = Await _api.PlaceOrderAsync(
-              instrument:=SpotInstrument,
-              side:="buy",
-              amount:=amt,
-              contracts:=Nothing,
-              price:=limitUp,
-              orderType:="limit",
-              tif:="immediate_or_cancel",
-              postOnly:=Nothing,
-              reduceOnly:=Nothing,
-              label:="ContangoSpotIOC"
-            )
+    instrument:=SpotInstrument,
+    side:="buy",
+    amount:=amt,
+    contracts:=Nothing,
+    price:=limitUp,
+    orderType:="limit",
+    tif:="immediate_or_cancel",
+    postOnly:=Nothing,
+    reduceOnly:=Nothing,
+    label:="ContangoSpotIOC"
+  )
             TrackOrder(spotOrder)
 
-            ' Futures will be placed upon spot trade fills (OnTradeUpdate)
-            ' Initialize hedge timer for IOC fallback
+            ' Immediate fallback to place futures if private trade event is delayed/missed
+            Await HandleSpotImmediateFillAsync(spotOrder)
+
+            ' Initialize hedge timer for IOC fallback as an extra guard
             SyncLock _lock
-                _hedgeWatchTsUtc = DateTime.UtcNow
+                If _hedgeWatchTsUtc = Date.MinValue Then _hedgeWatchTsUtc = DateTime.UtcNow
             End SyncLock
         End Function
+
+
+        Private Async Function HandleSpotImmediateFillAsync(spotOrderResult As JObject) As Task
+            Try
+                Dim ord = spotOrderResult?("order")?.Value(Of JObject)()
+                Dim oid As String = ord?.Value(Of String)("order_id")
+                Dim filledAmt As Decimal = ord?.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
+                Dim avgPx As Decimal = ord?.Value(Of Decimal?)("average_price").GetValueOrDefault(0D)
+
+                If (filledAmt <= 0D OrElse avgPx <= 0D) AndAlso Not String.IsNullOrEmpty(oid) Then
+                    Dim st = Await _api.GetOrderStateAsync(oid)
+                    If st IsNot Nothing Then
+                        filledAmt = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(filledAmt)
+                        avgPx = st.Value(Of Decimal?)("average_price").GetValueOrDefault(avgPx)
+                    End If
+                End If
+
+                If filledAmt <= 0D Then Return
+
+                ' Compute notional from realized spot fill
+                Dim notional As Decimal = filledAmt * If(avgPx > 0D, avgPx, _monitor.SpotMid)
+                If notional <= 0D Then Return
+
+                ' Ensure futures specs and current bid
+                Await RefreshInstrumentSpecsAsync()
+                Dim bid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
+                If bid <= 0D Then Return
+                Dim px = RoundToTick(bid, _futTick)
+                Dim contracts As Integer = ComputeContractsFromUsd(notional)
+
+                ' Place post_only futures short now (no need to wait for private trades)
+                Dim futLabel = $"ContangoFutShort_{DateTime.UtcNow:HHmmss}_FB"
+                Dim futOrder = Await _api.PlaceOrderAsync(
+      instrument:=FuturesInstrument,
+      side:="sell",
+      contracts:=contracts,
+      price:=px,
+      orderType:="limit",
+      tif:="good_til_cancelled",
+      postOnly:=True,
+      reduceOnly:=False,
+      label:=futLabel
+    )
+                TrackOrder(futOrder)
+
+                ' Immediate persistence/log for operator visibility
+                Try
+                    Dim o = futOrder?("order")?.Value(Of JObject)()
+                    Dim futOid = o?.Value(Of String)("order_id")
+                    Dim futPx = o?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                    _db.SaveTrade($"ORDER-{futOid}", DateTime.UtcNow, "sell", FuturesInstrument, Nothing, Nothing, If(futPx > 0D, futPx, 0D), "BTC", 0D)
+                Catch
+                End Try
+
+                SyncLock _lock
+                    _pendingFutContracts += contracts
+                    If _hedgeWatchTsUtc = Date.MinValue Then _hedgeWatchTsUtc = DateTime.UtcNow
+                End SyncLock
+
+                StartHedgeFallbackTimer()
+            Catch
+                ' Swallow to avoid breaking the calling flow; private events may still trigger the hedge
+            End Try
+        End Function
+
+
 
         ' Roll: close current via reduce_only, then select strictly next weekly and later user can re-enter
         Public Async Function RollToNextWeeklyAsync(indexPrice As Decimal) As Task
@@ -284,73 +352,118 @@ Namespace DeribitContango
             If trades Is Nothing OrElse trades.Type <> JTokenType.Array OrElse trades.Count = 0 Then Return
 
             If instrument = SpotInstrument Then
-                ' For each spot buy fill, place matching futures short post_only at bid; IOC fallback after timeout
+                ' Spot fills -> place futures post_only short sized from realized spot notional
                 Dim totalAmt As Decimal = 0D
                 Dim w As Decimal = 0D
                 Dim vwap As Decimal = 0D
+
                 For Each t In trades
-                    Dim side = t.Value(Of String)("side")
-                    If side <> "buy" Then Continue For
+                    Dim sideStr = t.Value(Of String)("side")
+                    If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
+                    If String.IsNullOrEmpty(sideStr) OrElse Not sideStr.Equals("buy", StringComparison.OrdinalIgnoreCase) Then Continue For
+
                     Dim amt = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
                     Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
                     Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
                     Dim feeCcy = t.Value(Of String)("fee_currency")
+
                     totalAmt += amt
                     If px > 0D AndAlso amt > 0D Then
                         vwap = (vwap * w + px * amt) / Math.Max(1D, w + amt)
                         w += amt
                     End If
-                    _db.SaveTrade(t.Value(Of String)("trade_id"), DateTime.UtcNow, side, instrument, amt, Nothing, px, feeCcy, fee)
+
+                    _db.SaveTrade(
+        t.Value(Of String)("trade_id"),
+        DateTime.UtcNow,
+        "buy",
+        instrument,
+        amt,
+        Nothing,
+        px,
+        feeCcy,
+        fee
+      )
                 Next
 
                 If totalAmt > 0D Then
-                    ' Compute contracts from USDC notional of spot fill
+                    Await RefreshInstrumentSpecsAsync()
                     Dim notional = totalAmt * If(vwap > 0D, vwap, _monitor.SpotMid)
-                    Dim contracts As Integer = ComputeContractsFromUsd(notional)
-                    Dim bid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
-                    If bid <= 0D Then Exit Sub
-                    Dim px = RoundToTick(bid, _futTick)
+                    If notional > 0D Then
+                        Dim bid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
+                        If bid > 0D Then
+                            Dim pxF = RoundToTick(bid, _futTick)
+                            Dim contracts As Integer = ComputeContractsFromUsd(notional)
 
-                    Dim futLabel = $"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
-                    Dim futOrder = Await _api.PlaceOrderAsync(
-                      instrument:=FuturesInstrument,
-                      side:="sell",
-                      contracts:=contracts,
-                      price:=px,
-                      orderType:="limit",
-                      tif:="good_til_cancelled",
-                      postOnly:=True,
-                      reduceOnly:=False,
-                      label:=futLabel
-                    )
-                    TrackOrder(futOrder)
+                            Dim futLabel = $"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
+                            Dim futOrder = Await _api.PlaceOrderAsync(
+            instrument:=FuturesInstrument,
+            side:="sell",
+            amount:=Nothing,
+            contracts:=contracts,
+            price:=pxF,
+            orderType:="limit",
+            tif:="good_til_cancelled",
+            postOnly:=True,
+            reduceOnly:=False,
+            label:=futLabel
+          )
+                            TrackOrder(futOrder)
 
-                    ' Increase outstanding and start fallback timer (fire-and-forget)
-                    SyncLock _lock
-                        _pendingFutContracts += contracts
-                        If _hedgeWatchTsUtc = Date.MinValue Then _hedgeWatchTsUtc = DateTime.UtcNow
-                    End SyncLock
+                            ' Immediate persistence/log for operator visibility
+                            Try
+                                Dim o = futOrder?("order")?.Value(Of JObject)()
+                                Dim futOid = o?.Value(Of String)("order_id")
+                                Dim futPx = o?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                _db.SaveTrade($"ORDER-{futOid}", DateTime.UtcNow, "sell", FuturesInstrument, Nothing, Nothing, If(futPx > 0D, futPx, 0D), "BTC", 0D)
+                            Catch
+                            End Try
 
-                    StartHedgeFallbackTimer()
+                            SyncLock _lock
+                                _pendingFutContracts += contracts
+                                If _hedgeWatchTsUtc = Date.MinValue Then _hedgeWatchTsUtc = DateTime.UtcNow
+                            End SyncLock
 
+                            StartHedgeFallbackTimer()
+                        End If
+                    End If
                 End If
 
             ElseIf instrument = FuturesInstrument Then
-                ' Persist trades and reduce outstanding contracts if sell fills arrived
+                ' Futures fills -> decrement outstanding hedge contracts; persist trades
                 Dim filledContracts As Integer = 0
+
                 For Each t In trades
-                    Dim side = t.Value(Of String)("side")
+                    Dim sideStr = t.Value(Of String)("side")
+                    If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
+
+                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
                     Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
                     Dim feeCcy = t.Value(Of String)("fee_currency")
-                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
                     Dim c = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
                     If c = 0 Then
-                        ' Some payloads provide "amount"; approximate contracts from USD notional
                         Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
-                        If amtUsd > 0D Then c = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                        If amtUsd > 0D Then
+                            c = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                        End If
                     End If
-                    _db.SaveTrade(t.Value(Of String)("trade_id"), DateTime.UtcNow, side, instrument, Nothing, c, px, feeCcy, fee)
-                    If side = "sell" Then filledContracts += c
+
+                    _db.SaveTrade(
+        t.Value(Of String)("trade_id"),
+        DateTime.UtcNow,
+        If(String.IsNullOrEmpty(sideStr), "", sideStr),
+        instrument,
+        Nothing,
+        c,
+        px,
+        feeCcy,
+        fee
+      )
+
+                    If Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
+                        filledContracts += c
+                    End If
                 Next
 
                 If filledContracts > 0 Then
@@ -360,6 +473,8 @@ Namespace DeribitContango
                 End If
             End If
         End Sub
+
+
 
         Private Sub StartHedgeFallbackTimer()
             Try

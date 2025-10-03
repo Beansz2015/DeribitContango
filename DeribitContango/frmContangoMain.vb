@@ -44,13 +44,16 @@ Public Class frmContangoMain
         End Try
     End Sub
 
+    Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged
+        If _pm Is Nothing Then Exit Sub
+        _pm.RequoteIntervalMs = CInt(numRequoteMs.Value)
+    End Sub
+
     Private Sub numRequoteTicks_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteTicks.ValueChanged
+        If _pm Is Nothing Then Exit Sub
         _pm.RequoteMinTicks = CInt(numRequoteTicks.Value)
     End Sub
 
-    Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged
-        _pm.RequoteIntervalMs = CInt(numRequoteMs.Value)
-    End Sub
 
 
     Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) Handles btnConnect.Click
@@ -202,9 +205,25 @@ Public Class frmContangoMain
     Private Sub OnOrderUpdate(currency As String, payload As JObject)
         Dim st = payload.Value(Of String)("state")
         If String.IsNullOrEmpty(st) Then st = payload.Value(Of String)("order_state")
-        Dim line = $"ORDER {currency} {payload.Value(Of String)("order_id")} {st} {payload.Value(Of String)("instrument_name")}"
-        AppendLog(line)
+        Dim oid = payload.Value(Of String)("order_id")
+        Dim instr = payload.Value(Of String)("instrument_name")
+        Dim side = payload.Value(Of String)("direction")
+        If String.IsNullOrEmpty(side) Then side = payload.Value(Of String)("side")
+        Dim px As Decimal = payload.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+        Dim amtStr As String = ""
+        Dim contracts = payload.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+        Dim amount = payload.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+        If contracts > 0 Then
+            amtStr = $"contracts={contracts}"
+        ElseIf amount > 0D Then
+            amtStr = $"amount={amount:0.########}"
+        End If
+
+        AppendLog($"ORDER {currency} id={oid} state={st} {instr} {side} px={If(px > 0D, px.ToString("0.00"), "-")} {amtStr}")
     End Sub
+
+
 
 
     Private Sub OnTradeUpdate(currency As String, payload As JObject)

@@ -45,6 +45,11 @@ Namespace DeribitContango
         Private _requoteIntervalMsBacking As Integer = 300
         Private _requoteMaxTicks As Integer = 3   ' keep upper bound to reduce churn
 
+        ' Fill monitor (futures) to hedge even if private trades are delayed
+        Private _fillMonCts As CancellationTokenSource = Nothing
+        Private _lastObservedFilledContracts As Integer = 0
+
+
         Public Sub New(api As DeribitApiClient, db As ContangoDatabase, monitor As ContangoBasisMonitor)
             _api = api
             _db = db
@@ -210,6 +215,7 @@ Namespace DeribitContango
             ' Start watchdog and re-quote loop
             StartHedgeFallbackTimer()
             StartRequoteLoop()
+            StartFillMonitorLoop() ' NEW: poll order state to hedge on fills even without private events
             RaiseEvent Info($"Futures post_only placed at {pxF:0.00}, contracts={contracts}, order_id={_lastFutOrderId}")
         End Function
 
@@ -224,6 +230,7 @@ Namespace DeribitContango
             If orderId = _lastFutOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
                 ' Stop re-quoting on terminal states
                 StopRequoteLoop()
+                StopFillMonitorLoop()
             End If
 
             SyncLock _lock
@@ -468,6 +475,123 @@ Namespace DeribitContango
             End Set
         End Property
 
+        Private Sub StartFillMonitorLoop()
+            Try
+                StopFillMonitorLoop()
+                _fillMonCts = New Threading.CancellationTokenSource()
+                _lastObservedFilledContracts = 0
+                Task.Run(Function() FillMonitorLoopAsync(_fillMonCts.Token))
+            Catch
+            End Try
+        End Sub
+
+        Private Sub StopFillMonitorLoop()
+            Try
+                _fillMonCts?.Cancel()
+            Catch
+            End Try
+        End Sub
+
+        Private Async Function FillMonitorLoopAsync(ct As Threading.CancellationToken) As Task
+            While Not ct.IsCancellationRequested
+                Dim doDelay As Boolean = False
+                Try
+                    If String.IsNullOrEmpty(_lastFutOrderId) Then Exit While
+
+                    ' Read current order state
+                    Dim st = Await _api.GetOrderStateAsync(_lastFutOrderId)
+                    If st Is Nothing Then
+                        doDelay = True
+                    Else
+                        Dim ordState As String = st.Value(Of String)("order_state")
+                        If String.IsNullOrEmpty(ordState) Then ordState = st.Value(Of String)("state")
+
+                        ' Terminal states: filled / cancelled / rejected
+                        If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
+                            Dim totalFilled As Integer = st.Value(Of Integer?)("filled_contracts").GetValueOrDefault(0)
+                            If totalFilled = 0 Then
+                                Dim filledAmtUsd = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
+                                If filledAmtUsd > 0D Then
+                                    totalFilled = CInt(Math.Round(filledAmtUsd / 10D, MidpointRounding.AwayFromZero))
+                                End If
+                            End If
+
+                            Dim avgPxOrder As Decimal = st.Value(Of Decimal?)("average_price").GetValueOrDefault(0D)
+                            Dim deltaInc As Integer = Math.Max(0, totalFilled - _lastObservedFilledContracts)
+                            If deltaInc > 0 AndAlso avgPxOrder > 0D Then
+                                Await PlaceSpotIOCForContractsAsync(deltaInc, avgPxOrder)
+                                _lastObservedFilledContracts = totalFilled
+                            End If
+                            Exit While
+                        End If
+
+                        ' Non-terminal: hedge incremental fills
+                        Dim filledNow As Integer = st.Value(Of Integer?)("filled_contracts").GetValueOrDefault(0)
+                        If filledNow = 0 Then
+                            Dim filledAmtUsd2 = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
+                            If filledAmtUsd2 > 0D Then
+                                filledNow = CInt(Math.Round(filledAmtUsd2 / 10D, MidpointRounding.AwayFromZero))
+                            End If
+                        End If
+
+                        Dim avgPxLive As Decimal = st.Value(Of Decimal?)("average_price").GetValueOrDefault(0D)
+                        Dim deltaLive As Integer = Math.Max(0, filledNow - _lastObservedFilledContracts)
+                        If deltaLive > 0 AndAlso avgPxLive > 0D Then
+                            Await PlaceSpotIOCForContractsAsync(deltaLive, avgPxLive)
+                            _lastObservedFilledContracts = filledNow
+                        End If
+
+                        doDelay = True
+                    End If
+
+                Catch ex As TaskCanceledException
+                    Exit While
+                Catch
+                    ' Defer delay outside Catch per VB rules
+                    doDelay = True
+                End Try
+
+                If doDelay Then
+                    Try
+                        Await Task.Delay(RequoteIntervalMs, ct)
+                    Catch
+                        Exit While
+                    End Try
+                End If
+            End While
+        End Function
+
+
+        Private Async Function PlaceSpotIOCForContractsAsync(contracts As Integer, refPx As Decimal) As Task
+            ' Compute BTC to buy from inverse contracts and price
+            Dim btcToBuy = ComputeBtcFromContracts(contracts, refPx)
+            If btcToBuy <= 0D Then Return
+
+            ' Round to spot increments
+            Await RefreshInstrumentSpecsAsync()
+            Dim amt = RoundDownToStep(btcToBuy, _spotAmountStep)
+            If amt < _spotMinAmount Then Return
+
+            ' Compute a marketable limit at spot mid plus slippage bps
+            Dim mid = _monitor.SpotMid
+            If mid <= 0D Then mid = If(_monitor.SpotBestAsk > 0D, _monitor.SpotBestAsk, _monitor.IndexPriceUsd)
+            If mid <= 0D Then Return
+            Dim limitUp = RoundToTick(mid * (1D + MaxSlippageBps / 10000D), _spotTick)
+
+            Dim spotOrder = Await _api.PlaceOrderAsync(
+    instrument:=SpotInstrument,
+    side:="buy",
+    amount:=amt,
+    price:=limitUp,
+    orderType:="limit",
+    tif:="immediate_or_cancel",
+    label:="ContangoSpotIOC (poll)"
+  )
+            TrackOrder(spotOrder)
+            RaiseEvent Info($"Spot IOC hedge (poll) placed amt={amt:0.########} px<= {limitUp:0.00}")
+        End Function
+
+
         ' ============ Watchdog: cancel unfilled futures on timeout or decay ============
 
         Private Sub StartHedgeFallbackTimer()
@@ -505,6 +629,7 @@ Namespace DeribitContango
                 Try
                     Await _api.CancelOrderAsync(oid)
                     RaiseEvent Info($"Watchdog: cancelled resting futures order id={oid}")
+                    StopFillMonitorLoop()
                 Catch
                 End Try
                 StopRequoteLoop()

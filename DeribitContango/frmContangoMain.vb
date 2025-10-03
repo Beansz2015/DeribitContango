@@ -23,6 +23,7 @@ Public Class frmContangoMain
             AddHandler _api.PublicMessage, AddressOf OnPublicMessage
             AddHandler _api.OrderUpdate, AddressOf OnOrderUpdate
             AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
+            AddHandler _pm.Info, Sub(m) AppendLog(m)   ' <-- integration for re-quote/watchdog messages
 
             _uiTimer = New System.Windows.Forms.Timer()
             _uiTimer.Interval = 1000
@@ -51,21 +52,18 @@ Public Class frmContangoMain
             AppendLog("Authorized; subscribing channels...")
 
             Await _api.SubscribePrivateAsync({
-  "user.orders.BTC",
-  "user.trades.BTC",
-  "user.orders.USDC",
-  "user.trades.USDC"
-})
-
-
+        "user.orders.BTC",
+        "user.trades.BTC",
+        "user.orders.USDC",
+        "user.trades.USDC"
+      })
 
             Await _api.SubscribePublicAsync({
-              "deribit_price_index.btc_usd",
-              "ticker.BTC_USDC.100ms",
-              "book.BTC_USDC.100ms"
-            })
+        "deribit_price_index.btc_usd",
+        "ticker.BTC_USDC.100ms",
+        "book.BTC_USDC.100ms"
+      })
 
-            ' Preload spot specs
             Await _pm.RefreshInstrumentSpecsAsync()
 
             AppendLog("Subscriptions active. Click Discover Weekly to select nearest future.")
@@ -81,13 +79,11 @@ Public Class frmContangoMain
             AppendLog("Nearest weekly: " & _pm.FuturesInstrument)
 
             Await _api.SubscribePublicAsync({
-              $"ticker.{_pm.FuturesInstrument}.100ms",
-              $"book.{_pm.FuturesInstrument}.100ms"
-            })
+        $"ticker.{_pm.FuturesInstrument}.100ms",
+        $"book.{_pm.FuturesInstrument}.100ms"
+      })
 
-            ' Load futures tick
             Await _pm.RefreshInstrumentSpecsAsync()
-
             UpdateExpiryLabels()
         Catch ex As Exception
             AppendLog("Discover error: " & ex.Message)
@@ -116,9 +112,9 @@ Public Class frmContangoMain
                 Throw New ApplicationException("Weekly future not selected. Click Discover Weekly first.")
             End If
 
-            ' New sequence: Spot first, then futures (with post_only and IOC fallback)
+            ' Futures first, spot on fills
             Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
-            AppendLog("Submitted spot IOC; futures post_only short will be placed on fills with IOC fallback.")
+            AppendLog("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
         Catch ex As Exception
             AppendLog("Enter error: " & ex.Message)
         End Try
@@ -131,9 +127,9 @@ Public Class frmContangoMain
 
             If Not String.IsNullOrEmpty(_pm.FuturesInstrument) Then
                 Await _api.SubscribePublicAsync({
-                  $"ticker.{_pm.FuturesInstrument}.100ms",
-                  $"book.{_pm.FuturesInstrument}.100ms"
-                })
+          $"ticker.{_pm.FuturesInstrument}.100ms",
+          $"book.{_pm.FuturesInstrument}.100ms"
+        })
                 Await _pm.RefreshInstrumentSpecsAsync()
                 UpdateExpiryLabels()
             End If

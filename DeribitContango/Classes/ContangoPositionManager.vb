@@ -475,15 +475,20 @@ Namespace DeribitContango
             End Set
         End Property
 
+        ' Track contracts seen from per-order trades to compute deltas robustly
+        Private _lastObservedOrderTradeContracts As Integer = 0
+
         Private Sub StartFillMonitorLoop()
             Try
                 StopFillMonitorLoop()
                 _fillMonCts = New Threading.CancellationTokenSource()
                 _lastObservedFilledContracts = 0
+                _lastObservedOrderTradeContracts = 0
                 Task.Run(Function() FillMonitorLoopAsync(_fillMonCts.Token))
             Catch
             End Try
         End Sub
+
 
         Private Sub StopFillMonitorLoop()
             Try
@@ -498,7 +503,7 @@ Namespace DeribitContango
                 Try
                     If String.IsNullOrEmpty(_lastFutOrderId) Then Exit While
 
-                    ' Read current order state
+                    ' 1) Fetch order state
                     Dim st = Await _api.GetOrderStateAsync(_lastFutOrderId)
                     If st Is Nothing Then
                         doDelay = True
@@ -506,39 +511,115 @@ Namespace DeribitContango
                         Dim ordState As String = st.Value(Of String)("order_state")
                         If String.IsNullOrEmpty(ordState) Then ordState = st.Value(Of String)("state")
 
-                        ' Terminal states: filled / cancelled / rejected
-                        If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
-                            Dim totalFilled As Integer = st.Value(Of Integer?)("filled_contracts").GetValueOrDefault(0)
-                            If totalFilled = 0 Then
-                                Dim filledAmtUsd = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
-                                If filledAmtUsd > 0D Then
-                                    totalFilled = CInt(Math.Round(filledAmtUsd / 10D, MidpointRounding.AwayFromZero))
+                        ' 2) Try trades-by-order first for robust deltas and VWAP
+                        Dim tradesArr As JArray = Nothing
+                        Try
+                            tradesArr = Await _api.GetUserTradesByOrderAsync(_lastFutOrderId)
+                        Catch
+                            tradesArr = Nothing
+                        End Try
+
+                        Dim totalContractsFromTrades As Integer = 0
+                        Dim sliceContracts As Integer = 0
+                        Dim sliceVwap As Decimal = 0D
+
+                        If tradesArr IsNot Nothing AndAlso tradesArr.Count > 0 Then
+                            ' Sum contracts and compute VWAP for newly observed slice
+                            Dim totalC As Integer = 0
+                            Dim sumPxAmt As Decimal = 0D
+                            Dim sumAmt As Integer = 0
+
+                            For Each t In tradesArr
+                                Dim c = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+                                If c = 0 Then
+                                    Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                                    If amtUsd > 0D Then c = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                                End If
+                                totalC += c
+                            Next
+
+                            totalContractsFromTrades = totalC
+                            sliceContracts = Math.Max(0, totalContractsFromTrades - _lastObservedOrderTradeContracts)
+
+                            If sliceContracts > 0 Then
+                                ' Compute slice VWAP only over the newly added trades
+                                Dim toSkip = _lastObservedOrderTradeContracts
+                                Dim taken As Integer = 0
+                                For Each t In tradesArr
+                                    Dim c = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+                                    If c = 0 Then
+                                        Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                                        If amtUsd > 0D Then c = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                                    End If
+                                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+                                    If toSkip > 0 Then
+                                        toSkip -= c
+                                        If toSkip < 0 Then
+                                            Dim partialContracts As Integer = Math.Min(c, -toSkip)
+                                            If px > 0D AndAlso partialContracts > 0 Then
+                                                sumPxAmt += px * partialContracts
+                                                sumAmt += partialContracts
+                                                taken += partialContracts
+                                            End If
+                                        End If
+                                    Else
+                                        If px > 0D AndAlso c > 0 Then
+                                            sumPxAmt += px * c
+                                            sumAmt += c
+                                            taken += c
+                                        End If
+                                    End If
+
+                                    If taken >= sliceContracts Then Exit For
+                                Next
+                                If sumAmt > 0 Then sliceVwap = sumPxAmt / sumAmt
+
+                            End If
+                        End If
+
+                        ' 3) If trades slice exists, hedge from slice
+                        If sliceContracts > 0 AndAlso sliceVwap > 0D Then
+                            RaiseEvent Info($"poll: trades delta={sliceContracts} vwap={sliceVwap:0.00}")
+                            Await PlaceSpotIOCForContractsAsync(sliceContracts, sliceVwap)
+                            _lastObservedOrderTradeContracts += sliceContracts
+
+                            ' Update filled-contracts tracker as well (best effort)
+                            Dim filledNowFromTrades = _lastObservedOrderTradeContracts
+                            If filledNowFromTrades > _lastObservedFilledContracts Then
+                                _lastObservedFilledContracts = filledNowFromTrades
+                            End If
+
+                            ' If completely filled, stop on terminal state
+                            If String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts > 0 Then
+                                SyncLock _lock
+                                    _pendingFutContracts = Math.Max(0, _pendingFutContracts - sliceContracts)
+                                End SyncLock
+                            End If
+
+                        Else
+                            ' 4) Fallback: derive deltas from order state if trades are not available yet
+                            Dim filledNow As Integer = st.Value(Of Integer?)("filled_contracts").GetValueOrDefault(0)
+                            If filledNow = 0 Then
+                                Dim filledAmtUsd2 = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
+                                If filledAmtUsd2 > 0D Then
+                                    filledNow = CInt(Math.Round(filledAmtUsd2 / 10D, MidpointRounding.AwayFromZero))
                                 End If
                             End If
 
                             Dim avgPxOrder As Decimal = st.Value(Of Decimal?)("average_price").GetValueOrDefault(0D)
-                            Dim deltaInc As Integer = Math.Max(0, totalFilled - _lastObservedFilledContracts)
+                            Dim deltaInc As Integer = Math.Max(0, filledNow - _lastObservedFilledContracts)
+
                             If deltaInc > 0 AndAlso avgPxOrder > 0D Then
+                                RaiseEvent Info($"poll: state delta={deltaInc} avg={avgPxOrder:0.00}")
                                 Await PlaceSpotIOCForContractsAsync(deltaInc, avgPxOrder)
-                                _lastObservedFilledContracts = totalFilled
+                                _lastObservedFilledContracts = filledNow
                             End If
+                        End If
+
+                        ' 5) Stop conditions on terminal order state
+                        If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
                             Exit While
-                        End If
-
-                        ' Non-terminal: hedge incremental fills
-                        Dim filledNow As Integer = st.Value(Of Integer?)("filled_contracts").GetValueOrDefault(0)
-                        If filledNow = 0 Then
-                            Dim filledAmtUsd2 = st.Value(Of Decimal?)("filled_amount").GetValueOrDefault(0D)
-                            If filledAmtUsd2 > 0D Then
-                                filledNow = CInt(Math.Round(filledAmtUsd2 / 10D, MidpointRounding.AwayFromZero))
-                            End If
-                        End If
-
-                        Dim avgPxLive As Decimal = st.Value(Of Decimal?)("average_price").GetValueOrDefault(0D)
-                        Dim deltaLive As Integer = Math.Max(0, filledNow - _lastObservedFilledContracts)
-                        If deltaLive > 0 AndAlso avgPxLive > 0D Then
-                            Await PlaceSpotIOCForContractsAsync(deltaLive, avgPxLive)
-                            _lastObservedFilledContracts = filledNow
                         End If
 
                         doDelay = True
@@ -547,7 +628,6 @@ Namespace DeribitContango
                 Catch ex As TaskCanceledException
                     Exit While
                 Catch
-                    ' Defer delay outside Catch per VB rules
                     doDelay = True
                 End Try
 
@@ -560,6 +640,7 @@ Namespace DeribitContango
                 End If
             End While
         End Function
+
 
 
         Private Async Function PlaceSpotIOCForContractsAsync(contracts As Integer, refPx As Decimal) As Task

@@ -277,6 +277,20 @@ Namespace DeribitContango
             RaiseEvent ConnectionStateChanged(False)
         End Function
 
+        Public Async Function GetUserTradesByOrderAsync(orderId As String) As Task(Of JArray)
+            Dim p As New JObject From {
+    {"order_id", orderId},
+    {"sorting", "asc"},
+    {"count", 200}
+  }
+            Dim res = Await SendAsync("private/get_user_trades_by_order", p)
+            Dim arr = res("result")?.Value(Of JArray)()
+            If arr Is Nothing Then
+                Return New JArray()
+            End If
+            Return arr
+        End Function
+
 
         Public Sub Dispose() Implements IDisposable.Dispose
             Try

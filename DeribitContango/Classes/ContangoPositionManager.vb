@@ -39,11 +39,11 @@ Namespace DeribitContango
         Private ReadOnly _hedgeTimeoutSeconds As Integer = 10
         Private _lastFutOrderId As String = Nothing
 
-        ' Re-quote controls
+        ' Re-quote controls (publicly tunable from UI)
         Private _requoteCts As CancellationTokenSource = Nothing
-        Private _requoteIntervalMs As Integer = 300
-        Private _requoteMinTicks As Integer = 2   ' require ≥2 ticks improvement before editing
-        Private _requoteMaxTicks As Integer = 3   ' optional upper band; edits only inside [2..3] ticks to reduce churn
+        Private _requoteMinTicksBacking As Integer = 2
+        Private _requoteIntervalMsBacking As Integer = 300
+        Private _requoteMaxTicks As Integer = 3   ' keep upper bound to reduce churn
 
         Public Sub New(api As DeribitApiClient, db As ContangoDatabase, monitor As ContangoBasisMonitor)
             _api = api
@@ -334,28 +334,32 @@ Namespace DeribitContango
             End Try
         End Sub
 
-        Private Async Function RequoteLoopAsync(ct As CancellationToken) As Task
-            Dim lastEditedPx As Decimal = 0D
-
+        Private Async Function RequoteLoopAsync(ct As Threading.CancellationToken) As Task
             While Not ct.IsCancellationRequested
-                Try
-                    ' Stop conditions
-                    If _pendingFutContracts <= 0 OrElse String.IsNullOrEmpty(_lastFutOrderId) Then Exit While
+                Dim doRetryDelay As Boolean = False
 
-                    ' Keep only when basis still valid
-                    Dim basisNow As Decimal = _monitor.BasisMid
-                    If basisNow < EntryThreshold Then
-                        Await Task.Delay(_requoteIntervalMs, ct) : Continue While
+                Try
+                    ' Stop if nothing pending or order missing
+                    If _pendingFutContracts <= 0 OrElse String.IsNullOrEmpty(_lastFutOrderId) Then
+                        Exit While
                     End If
 
-                    ' Current best bid
+                    ' Basis must still be valid
+                    Dim basisNow As Decimal = _monitor.BasisMid
+                    If basisNow < EntryThreshold Then
+                        Await Task.Delay(RequoteIntervalMs, ct)
+                        Continue While
+                    End If
+
+                    ' Market context
                     Dim bestBid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
                     If bestBid <= 0D Then
-                        Await Task.Delay(_requoteIntervalMs, ct) : Continue While
+                        Await Task.Delay(RequoteIntervalMs, ct)
+                        Continue While
                     End If
                     Dim targetPx = RoundToTick(bestBid, _futTick)
 
-                    ' Read current order state/price
+                    ' Current order state/price
                     Dim curState = Await _api.GetOrderStateAsync(_lastFutOrderId)
                     Dim curPx As Decimal = curState?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
                     Dim ordState As String = curState?.Value(Of String)("order_state")
@@ -365,18 +369,19 @@ Namespace DeribitContango
                         Exit While
                     End If
 
-                    ' Compute tick steps improvement
+                    ' Tick improvement calculation
                     Dim tickSteps As Integer = 0
                     If _futTick > 0D Then
                         tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
                     End If
 
-                    ' Guard: only re-quote when improvement is between 2 and 3 ticks
-                    If tickSteps < _requoteMinTicks OrElse tickSteps > _requoteMaxTicks Then
-                        Await Task.Delay(_requoteIntervalMs, ct) : Continue While
+                    ' Guard: require improvement within [RequoteMinTicks .. 3] ticks
+                    If tickSteps < RequoteMinTicks OrElse tickSteps > 3 Then
+                        Await Task.Delay(RequoteIntervalMs, ct)
+                        Continue While
                     End If
 
-                    ' Attempt in-place edit with post_only
+                    ' Try in-place edit with post_only
                     Dim edited As Boolean = False
                     Try
                         Dim editRes = Await _api.EditOrderAsync(_lastFutOrderId, price:=targetPx, postOnly:=True)
@@ -389,44 +394,79 @@ Namespace DeribitContango
                     End Try
 
                     If edited Then
-                        lastEditedPx = targetPx
                         RaiseEvent Info($"Re-quote edit: price -> {targetPx:0.00}")
                     Else
-                        ' Cancel and repost at targetPx if edit failed (e.g., would cross)
+                        ' Cancel & repost if edit failed (likely post_only cross)
                         Try
                             Await _api.CancelOrderAsync(_lastFutOrderId)
                         Catch
+                            ' ignore
                         End Try
+
                         Dim repost = Await _api.PlaceOrderAsync(
-                          instrument:=FuturesInstrument,
-                          side:="sell",
-                          contracts:=_pendingFutContracts,
-                          price:=targetPx,
-                          orderType:="limit",
-                          tif:="good_til_cancelled",
-                          postOnly:=True,
-                          reduceOnly:=False,
-                          label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
-                        )
+          instrument:=FuturesInstrument,
+          side:="sell",
+          contracts:=_pendingFutContracts,
+          price:=targetPx,
+          orderType:="limit",
+          tif:="good_til_cancelled",
+          postOnly:=True,
+          reduceOnly:=False,
+          label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
+        )
                         Dim ro = repost?("order")?.Value(Of JObject)()
                         Dim newId = ro?.Value(Of String)("order_id")
                         If Not String.IsNullOrEmpty(newId) Then _lastFutOrderId = newId
-                        lastEditedPx = targetPx
                         RaiseEvent Info($"Re-quote repost: price -> {targetPx:0.00}, id={_lastFutOrderId}")
                     End If
 
-                    Await Task.Delay(_requoteIntervalMs, ct)
+                    ' Pace the loop
+                    Await Task.Delay(RequoteIntervalMs, ct)
+                    Continue While
+
                 Catch ex As TaskCanceledException
                     Exit While
+
                 Catch
+                    ' mark for retry pacing without awaiting inside Catch
+                    doRetryDelay = True
+
+                End Try
+
+                If doRetryDelay Then
                     Try
-                        Await Task.Delay(_requoteIntervalMs, ct)
+                        Await Task.Delay(RequoteIntervalMs, ct)
                     Catch
                         Exit While
                     End Try
-                End Try
+                End If
             End While
         End Function
+
+
+        Public Property RequoteMinTicks As Integer
+            Get
+                Return _requoteMinTicksBacking
+            End Get
+            Set(value As Integer)
+                ' clamp to [1..10]; default 2
+                If value < 1 Then value = 1
+                If value > 10 Then value = 10
+                _requoteMinTicksBacking = value
+            End Set
+        End Property
+
+        Public Property RequoteIntervalMs As Integer
+            Get
+                Return _requoteIntervalMsBacking
+            End Get
+            Set(value As Integer)
+                ' clamp to [100..5000] ms; default 300
+                If value < 100 Then value = 100
+                If value > 5000 Then value = 5000
+                _requoteIntervalMsBacking = value
+            End Set
+        End Property
 
         ' ============ Watchdog: cancel unfilled futures on timeout or decay ============
 

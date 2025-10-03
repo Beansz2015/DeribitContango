@@ -25,6 +25,10 @@ Public Class frmContangoMain
             AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
             AddHandler _pm.Info, Sub(m) AppendLog(m)   ' <-- integration for re-quote/watchdog messages
 
+            ' Initialize UI controls from PM defaults
+            numRequoteTicks.Value = _pm.RequoteMinTicks
+            numRequoteMs.Value = _pm.RequoteIntervalMs
+
             _uiTimer = New System.Windows.Forms.Timer()
             _uiTimer.Interval = 1000
             AddHandler _uiTimer.Tick, AddressOf OnUiTick
@@ -39,6 +43,15 @@ Public Class frmContangoMain
             AppendLog("Load error: " & ex.Message)
         End Try
     End Sub
+
+    Private Sub numRequoteTicks_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteTicks.ValueChanged
+        _pm.RequoteMinTicks = CInt(numRequoteTicks.Value)
+    End Sub
+
+    Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged
+        _pm.RequoteIntervalMs = CInt(numRequoteMs.Value)
+    End Sub
+
 
     Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) Handles btnConnect.Click
         Try
@@ -334,5 +347,7 @@ Public Class frmContangoMain
             ' Swallow and rely on ticker.* as primary source
         End Try
     End Sub
+
+
 
 End Class

@@ -57,6 +57,10 @@ Partial Class frmContangoMain
         Label18 = New Label()
         Label17 = New Label()
         grpEntry = New GroupBox()
+        numRequoteMs = New NumericUpDown()
+        LabelRQMs = New Label()
+        numRequoteTicks = New NumericUpDown()
+        LabelRQTicks = New Label()
         numSlippageBps = New NumericUpDown()
         Label23 = New Label()
         numThreshold = New NumericUpDown()
@@ -75,6 +79,8 @@ Partial Class frmContangoMain
         grpMarket.SuspendLayout()
         grpTime.SuspendLayout()
         grpEntry.SuspendLayout()
+        CType(numRequoteMs, ComponentModel.ISupportInitialize).BeginInit()
+        CType(numRequoteTicks, ComponentModel.ISupportInitialize).BeginInit()
         CType(numSlippageBps, ComponentModel.ISupportInitialize).BeginInit()
         CType(numThreshold, ComponentModel.ISupportInitialize).BeginInit()
         grpLog.SuspendLayout()
@@ -82,6 +88,7 @@ Partial Class frmContangoMain
         ' 
         ' grpConnection
         ' 
+        grpConnection.BackColor = Color.LightSteelBlue
         grpConnection.Controls.Add(btnDiscoverWeekly)
         grpConnection.Controls.Add(lblConn)
         grpConnection.Controls.Add(btnConnect)
@@ -89,6 +96,7 @@ Partial Class frmContangoMain
         grpConnection.Controls.Add(Label2)
         grpConnection.Controls.Add(txtClientId)
         grpConnection.Controls.Add(Label1)
+        grpConnection.ForeColor = Color.MidnightBlue
         grpConnection.Location = New Point(17, 20)
         grpConnection.Margin = New Padding(4, 5, 4, 5)
         grpConnection.Name = "grpConnection"
@@ -100,13 +108,14 @@ Partial Class frmContangoMain
         ' 
         ' btnDiscoverWeekly
         ' 
+        btnDiscoverWeekly.BackColor = Color.Khaki
         btnDiscoverWeekly.Location = New Point(967, 32)
         btnDiscoverWeekly.Margin = New Padding(4, 5, 4, 5)
         btnDiscoverWeekly.Name = "btnDiscoverWeekly"
         btnDiscoverWeekly.Size = New Size(133, 38)
         btnDiscoverWeekly.TabIndex = 6
-        btnDiscoverWeekly.Text = "Discover Weekly"
-        btnDiscoverWeekly.UseVisualStyleBackColor = True
+        btnDiscoverWeekly.Text = "Discover"
+        btnDiscoverWeekly.UseVisualStyleBackColor = False
         ' 
         ' lblConn
         ' 
@@ -120,13 +129,14 @@ Partial Class frmContangoMain
         ' 
         ' btnConnect
         ' 
+        btnConnect.BackColor = Color.PaleGreen
         btnConnect.Location = New Point(851, 32)
         btnConnect.Margin = New Padding(4, 5, 4, 5)
         btnConnect.Name = "btnConnect"
         btnConnect.Size = New Size(107, 38)
         btnConnect.TabIndex = 4
         btnConnect.Text = "Connect"
-        btnConnect.UseVisualStyleBackColor = True
+        btnConnect.UseVisualStyleBackColor = False
         ' 
         ' txtClientSecret
         ' 
@@ -167,6 +177,7 @@ Partial Class frmContangoMain
         ' 
         ' grpMarket
         ' 
+        grpMarket.BackColor = Color.LemonChiffon
         grpMarket.Controls.Add(lblAnnual)
         grpMarket.Controls.Add(Label16)
         grpMarket.Controls.Add(lblBasis)
@@ -183,6 +194,7 @@ Partial Class frmContangoMain
         grpMarket.Controls.Add(Label4)
         grpMarket.Controls.Add(lblIndex)
         grpMarket.Controls.Add(Label3)
+        grpMarket.ForeColor = Color.DarkOliveGreen
         grpMarket.Location = New Point(17, 173)
         grpMarket.Margin = New Padding(4, 5, 4, 5)
         grpMarket.Name = "grpMarket"
@@ -354,6 +366,7 @@ Partial Class frmContangoMain
         ' 
         ' grpTime
         ' 
+        grpTime.BackColor = Color.Honeydew
         grpTime.Controls.Add(lblNowMYT)
         grpTime.Controls.Add(lblNowUTC)
         grpTime.Controls.Add(lblExpiryMYT)
@@ -362,6 +375,7 @@ Partial Class frmContangoMain
         grpTime.Controls.Add(Label19)
         grpTime.Controls.Add(Label18)
         grpTime.Controls.Add(Label17)
+        grpTime.ForeColor = Color.DarkGreen
         grpTime.Location = New Point(17, 373)
         grpTime.Margin = New Padding(4, 5, 4, 5)
         grpTime.Name = "grpTime"
@@ -453,6 +467,11 @@ Partial Class frmContangoMain
         ' 
         ' grpEntry
         ' 
+        grpEntry.BackColor = Color.Lavender
+        grpEntry.Controls.Add(numRequoteMs)
+        grpEntry.Controls.Add(LabelRQMs)
+        grpEntry.Controls.Add(numRequoteTicks)
+        grpEntry.Controls.Add(LabelRQTicks)
         grpEntry.Controls.Add(numSlippageBps)
         grpEntry.Controls.Add(Label23)
         grpEntry.Controls.Add(numThreshold)
@@ -465,14 +484,58 @@ Partial Class frmContangoMain
         grpEntry.Controls.Add(radBTC)
         grpEntry.Controls.Add(radUSD)
         grpEntry.Controls.Add(Label21)
+        grpEntry.ForeColor = Color.MidnightBlue
         grpEntry.Location = New Point(17, 537)
         grpEntry.Margin = New Padding(4, 5, 4, 5)
         grpEntry.Name = "grpEntry"
         grpEntry.Padding = New Padding(4, 5, 4, 5)
-        grpEntry.Size = New Size(1109, 177)
+        grpEntry.Size = New Size(1109, 233)
         grpEntry.TabIndex = 3
         grpEntry.TabStop = False
         grpEntry.Text = "Entry / Risk"
+        ' 
+        ' numRequoteMs
+        ' 
+        numRequoteMs.Increment = New Decimal(New Integer() {50, 0, 0, 0})
+        numRequoteMs.Location = New Point(1043, 150)
+        numRequoteMs.Margin = New Padding(4, 5, 4, 5)
+        numRequoteMs.Maximum = New Decimal(New Integer() {5000, 0, 0, 0})
+        numRequoteMs.Minimum = New Decimal(New Integer() {100, 0, 0, 0})
+        numRequoteMs.Name = "numRequoteMs"
+        numRequoteMs.Size = New Size(97, 31)
+        numRequoteMs.TabIndex = 13
+        numRequoteMs.Value = New Decimal(New Integer() {300, 0, 0, 0})
+        ' 
+        ' LabelRQMs
+        ' 
+        LabelRQMs.AutoSize = True
+        LabelRQMs.Location = New Point(880, 153)
+        LabelRQMs.Margin = New Padding(4, 0, 4, 0)
+        LabelRQMs.Name = "LabelRQMs"
+        LabelRQMs.Size = New Size(171, 25)
+        LabelRQMs.TabIndex = 14
+        LabelRQMs.Text = "Re-quote ms (100+)"
+        ' 
+        ' numRequoteTicks
+        ' 
+        numRequoteTicks.Location = New Point(774, 150)
+        numRequoteTicks.Margin = New Padding(4, 5, 4, 5)
+        numRequoteTicks.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
+        numRequoteTicks.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
+        numRequoteTicks.Name = "numRequoteTicks"
+        numRequoteTicks.Size = New Size(97, 31)
+        numRequoteTicks.TabIndex = 12
+        numRequoteTicks.Value = New Decimal(New Integer() {2, 0, 0, 0})
+        ' 
+        ' LabelRQTicks
+        ' 
+        LabelRQTicks.AutoSize = True
+        LabelRQTicks.Location = New Point(621, 153)
+        LabelRQTicks.Margin = New Padding(4, 0, 4, 0)
+        LabelRQTicks.Name = "LabelRQTicks"
+        LabelRQTicks.Size = New Size(160, 25)
+        LabelRQTicks.TabIndex = 15
+        LabelRQTicks.Text = "Re-quote min ticks"
         ' 
         ' numSlippageBps
         ' 
@@ -518,33 +581,36 @@ Partial Class frmContangoMain
         ' 
         ' btnCloseAll
         ' 
+        btnCloseAll.BackColor = Color.MistyRose
         btnCloseAll.Location = New Point(944, 103)
         btnCloseAll.Margin = New Padding(4, 5, 4, 5)
         btnCloseAll.Name = "btnCloseAll"
         btnCloseAll.Size = New Size(156, 38)
         btnCloseAll.TabIndex = 7
         btnCloseAll.Text = "Close All"
-        btnCloseAll.UseVisualStyleBackColor = True
+        btnCloseAll.UseVisualStyleBackColor = False
         ' 
         ' btnRoll
         ' 
+        btnRoll.BackColor = Color.LightGoldenrodYellow
         btnRoll.Location = New Point(944, 37)
         btnRoll.Margin = New Padding(4, 5, 4, 5)
         btnRoll.Name = "btnRoll"
         btnRoll.Size = New Size(156, 38)
         btnRoll.TabIndex = 6
         btnRoll.Text = "Roll to Next"
-        btnRoll.UseVisualStyleBackColor = True
+        btnRoll.UseVisualStyleBackColor = False
         ' 
         ' btnEnter
         ' 
+        btnEnter.BackColor = Color.LightSkyBlue
         btnEnter.Location = New Point(500, 45)
         btnEnter.Margin = New Padding(4, 5, 4, 5)
         btnEnter.Name = "btnEnter"
         btnEnter.Size = New Size(121, 97)
         btnEnter.TabIndex = 5
         btnEnter.Text = "Enter Basis"
-        btnEnter.UseVisualStyleBackColor = True
+        btnEnter.UseVisualStyleBackColor = False
         ' 
         ' txtAmount
         ' 
@@ -601,8 +667,10 @@ Partial Class frmContangoMain
         ' 
         ' grpLog
         ' 
+        grpLog.BackColor = Color.White
         grpLog.Controls.Add(txtLog)
-        grpLog.Location = New Point(17, 723)
+        grpLog.ForeColor = Color.Black
+        grpLog.Location = New Point(17, 780)
         grpLog.Margin = New Padding(4, 5, 4, 5)
         grpLog.Name = "grpLog"
         grpLog.Padding = New Padding(4, 5, 4, 5)
@@ -613,6 +681,7 @@ Partial Class frmContangoMain
         ' 
         ' txtLog
         ' 
+        txtLog.BackColor = Color.White
         txtLog.Dock = DockStyle.Fill
         txtLog.Location = New Point(4, 29)
         txtLog.Margin = New Padding(4, 5, 4, 5)
@@ -623,9 +692,10 @@ Partial Class frmContangoMain
         ' 
         ' frmContangoMain
         ' 
-        AutoScaleDimensions = New SizeF(10F, 25F)
+        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
         AutoScaleMode = AutoScaleMode.Font
-        ClientSize = New Size(1143, 1083)
+        BackColor = Color.WhiteSmoke
+        ClientSize = New Size(1143, 1140)
         Controls.Add(grpLog)
         Controls.Add(grpEntry)
         Controls.Add(grpTime)
@@ -633,7 +703,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.3"
+        Text = "Deribit Contango Basis Trader - V1.4"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -642,6 +712,8 @@ Partial Class frmContangoMain
         grpTime.PerformLayout()
         grpEntry.ResumeLayout(False)
         grpEntry.PerformLayout()
+        CType(numRequoteMs, ComponentModel.ISupportInitialize).EndInit()
+        CType(numRequoteTicks, ComponentModel.ISupportInitialize).EndInit()
         CType(numSlippageBps, ComponentModel.ISupportInitialize).EndInit()
         CType(numThreshold, ComponentModel.ISupportInitialize).EndInit()
         grpLog.ResumeLayout(False)
@@ -698,4 +770,8 @@ Partial Class frmContangoMain
     Friend WithEvents Label21 As Label
     Friend WithEvents grpLog As GroupBox
     Friend WithEvents txtLog As RichTextBox
+    Friend WithEvents numRequoteTicks As NumericUpDown
+    Friend WithEvents LabelRQTicks As Label
+    Friend WithEvents numRequoteMs As NumericUpDown
+    Friend WithEvents LabelRQMs As Label
 End Class

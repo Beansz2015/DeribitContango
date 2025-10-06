@@ -52,6 +52,23 @@ Namespace DeribitContango
         ' Track contracts seen from per-order trades to compute deltas robustly
         Private _lastObservedOrderTradeContracts As Integer = 0
 
+        'For setting the flag when there is an active hedge
+        Private _isActive As Boolean = False
+        Public Event ActiveChanged(isActive As Boolean)
+
+        Public ReadOnly Property IsActive As Boolean
+            Get
+                Return _isActive
+            End Get
+        End Property
+
+        Private Sub SetActive(active As Boolean)
+            If _isActive <> active Then
+                _isActive = active
+                RaiseEvent ActiveChanged(_isActive)
+            End If
+        End Sub
+
 
         Public Enum SpotHedgeRounding
             DownToStep = 0
@@ -269,6 +286,8 @@ Namespace DeribitContango
                 _hedgeWatchTsUtc = DateTime.UtcNow
             End SyncLock
 
+            SetActive(True)
+
             ' Start watchdog and re-quote loop
             StartHedgeFallbackTimer()
             StartRequoteLoop()
@@ -285,10 +304,17 @@ Namespace DeribitContango
             If String.IsNullOrEmpty(state) Then Return
 
             If orderId = _lastFutOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
-                ' Stop re-quoting on terminal states
                 StopRequoteLoop()
                 StopFillMonitorLoop()
+                SyncLock _lock
+                    _pendingFutContracts = 0
+                    _hedgeWatchTsUtc = Date.MinValue
+                End SyncLock
+                _lastFutOrderId = Nothing
+                SetActive(False)
+                RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
             End If
+
 
             SyncLock _lock
                 If _openOrderIds.Contains(orderId) AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
@@ -337,35 +363,14 @@ Namespace DeribitContango
                     SyncLock _lock
                         _pendingFutContracts = Math.Max(0, _pendingFutContracts - filledContracts)
                     End SyncLock
-
-                    Dim btcToBuy = ComputeBtcFromContracts(filledContracts, vwap)
-                    Await RefreshInstrumentSpecsAsync()
-
-                    Dim mid = _monitor.SpotMid
-                    If mid <= 0D Then mid = If(_monitor.SpotBestAsk > 0D, _monitor.SpotBestAsk, _monitor.IndexPriceUsd)
-                    If mid > 0D Then
-                        Dim limitUp = RoundToTick(mid * (1D + MaxSlippageBps / 10000D), _spotTick)
-                        Dim amt = RoundDownToStep(btcToBuy, _spotAmountStep)
-                        If amt >= _spotMinAmount Then
-                            Dim spotOrder = Await _api.PlaceOrderAsync(
-                              instrument:=SpotInstrument,
-                              side:="buy",
-                              amount:=amt,
-                              price:=limitUp,
-                              orderType:="limit",
-                              tif:="immediate_or_cancel",
-                              label:="ContangoSpotIOC"
-                            )
-                            TrackOrder(spotOrder)
-                            RaiseEvent Info($"Spot IOC hedge placed amt={amt:0.########} px<= {limitUp:0.00}")
-                        End If
-                    End If
+                    Await PlaceSpotIOCForContractsAsync(filledContracts, vwap)
 
                     If _pendingFutContracts = 0 Then
                         StopRequoteLoop()
                         RaiseEvent Info("All futures contracts filled; re-quote loop stopped.")
                     End If
                 End If
+
 
             ElseIf instrument = SpotInstrument Then
                 For Each t In trades
@@ -789,7 +794,14 @@ Namespace DeribitContango
                 Catch
                 End Try
                 StopRequoteLoop()
+                SyncLock _lock
+                    _pendingFutContracts = 0
+                    _hedgeWatchTsUtc = Date.MinValue
+                End SyncLock
+                _lastFutOrderId = Nothing
+                SetActive(False)
             End If
+
         End Function
 
         ' ============ Admin ops ============

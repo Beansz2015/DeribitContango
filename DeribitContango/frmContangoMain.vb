@@ -20,6 +20,9 @@ Public Class frmContangoMain
             _mon = New DeribitContango.ContangoBasisMonitor()
             _pm = New DeribitContango.ContangoPositionManager(_api, _db, _mon)
 
+            AddHandler _pm.ActiveChanged, AddressOf OnPmActiveChanged
+            OnPmActiveChanged(_pm.IsActive)
+
             AddHandler _api.ConnectionStateChanged, AddressOf OnConnState
             AddHandler _api.PublicMessage, AddressOf OnPublicMessage
             AddHandler _api.OrderUpdate, AddressOf OnOrderUpdate
@@ -44,6 +47,23 @@ Public Class frmContangoMain
             AppendLog("Load error: " & ex.Message)
         End Try
     End Sub
+
+    ' 2) Add this handler in frmContangoMain:
+    Private Sub OnPmActiveChanged(active As Boolean)
+        ' Disable/enable actionable entry controls during an active position
+        btnEnter.Enabled = Not active
+        txtAmount.Enabled = Not active
+        radUSD.Enabled = Not active
+        radBTC.Enabled = Not active
+        numThreshold.Enabled = Not active
+        numSlippageBps.Enabled = Not active
+        numRequoteTicks.Enabled = Not active
+        numRequoteMs.Enabled = Not active
+        ' Optional visual cue
+        btnEnter.BackColor = If(active, Color.LightGray, Color.LightSkyBlue)
+        AppendLog(If(active, "Entry disabled: position cycle active.", "Entry enabled: no active position."))
+    End Sub
+
 
     Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged
         If _pm Is Nothing Then Exit Sub
@@ -109,6 +129,12 @@ Public Class frmContangoMain
 
     Private Async Sub btnEnter_Click(sender As Object, e As EventArgs) Handles btnEnter.Click
         Try
+            If _pm.IsActive Then
+                AppendLog("Entry blocked: active position in progress.")
+                Return
+            End If
+            btnEnter.Enabled = False   ' defensive UI disable
+
             _pm.UseUsdInput = radUSD.Checked
             _pm.EntryThreshold = numThreshold.Value
             _pm.MaxSlippageBps = numSlippageBps.Value
@@ -154,12 +180,17 @@ Public Class frmContangoMain
             Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
             AppendLog("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
         Catch ex As Exception
+            btnEnter.Enabled = True    ' re-enable on failure path
             AppendLog("Enter error: " & ex.Message)
         End Try
     End Sub
 
     Private Async Sub btnRoll_Click(sender As Object, e As EventArgs) Handles btnRoll.Click
         Try
+            If _pm.IsActive Then
+                AppendLog("Roll blocked: active position in progress.")
+                Return
+            End If
             Await _pm.RollToNextWeeklyAsync(_mon.IndexPriceUsd)
             AppendLog("Requested roll: closed current via reduce_only and selected next weekly.")
 

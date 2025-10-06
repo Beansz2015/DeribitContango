@@ -696,9 +696,21 @@ Namespace DeribitContango
                         End If
 
                         ' 5) Stop conditions on terminal order state
+                        ' 5) Stop conditions on terminal order state
                         If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
+                            ' Terminal guard: if fully filled (no pending), or cancelled/rejected,
+                            ' release the UI immediately even if private order update is delayed.
+                            If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
+     OrElse ordState = "cancelled" _
+     OrElse ordState = "rejected" Then
+                                _lastFutOrderId = Nothing
+                                SetActive(False)
+                                ' Defensive: ensure re-quote is not left running (usually already stopped)
+                                StopRequoteLoop()
+                            End If
                             Exit While
                         End If
+
 
                         doDelay = True
                     End If

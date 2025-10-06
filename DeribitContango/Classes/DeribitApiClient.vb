@@ -285,11 +285,10 @@ Namespace DeribitContango
   }
             Dim res = Await SendAsync("private/get_user_trades_by_order", p)
             Dim arr = res("result")?.Value(Of JArray)()
-            If arr Is Nothing Then
-                Return New JArray()
-            End If
+            If arr Is Nothing Then Return New JArray()
             Return arr
         End Function
+
 
 
         Public Sub Dispose() Implements IDisposable.Dispose

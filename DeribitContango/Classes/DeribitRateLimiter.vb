@@ -28,7 +28,7 @@ Namespace DeribitContango
                         Return
                     End If
                 End SyncLock
-                Await Task.Delay(25)
+                Await Task.Delay(50)
             End While
         End Function
     End Class

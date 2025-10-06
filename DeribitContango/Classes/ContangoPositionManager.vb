@@ -56,6 +56,14 @@ Namespace DeribitContango
         Private _isActive As Boolean = False
         Public Event ActiveChanged(isActive As Boolean)
 
+        ' Is the fill monitor running now?
+        Private ReadOnly Property IsFillMonitorActive As Boolean
+            Get
+                Return _fillMonCts IsNot Nothing AndAlso Not _fillMonCts.IsCancellationRequested
+            End Get
+        End Property
+
+
         Public ReadOnly Property IsActive As Boolean
             Get
                 Return _isActive
@@ -359,6 +367,10 @@ Namespace DeribitContango
                     End If
                 Next
 
+                If IsFillMonitorActive Then
+                    Exit Sub
+                End If
+
                 If filledContracts > 0 AndAlso vwap > 0D Then
                     SyncLock _lock
                         _pendingFutContracts = Math.Max(0, _pendingFutContracts - filledContracts)
@@ -654,11 +666,11 @@ Namespace DeribitContango
                             End If
 
                             ' If completely filled, stop on terminal state
-                            If String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts > 0 Then
-                                SyncLock _lock
-                                    _pendingFutContracts = Math.Max(0, _pendingFutContracts - sliceContracts)
-                                End SyncLock
-                            End If
+                            'If String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts > 0 Then
+                            ' SyncLock _lock
+                            '_pendingFutContracts = Math.Max(0, _pendingFutContracts - sliceContracts)
+                            'End SyncLock
+                            'End If
 
                         Else
                             ' 4) Fallback: derive deltas from order state if trades are not available yet
@@ -858,7 +870,15 @@ Namespace DeribitContango
             Catch
             End Try
             StopRequoteLoop()
+            StopFillMonitorLoop()
+            SyncLock _lock
+                _pendingFutContracts = 0
+                _hedgeWatchTsUtc = Date.MinValue
+            End SyncLock
+            _lastFutOrderId = Nothing
+            SetActive(False)
         End Function
+
 
     End Class
 End Namespace

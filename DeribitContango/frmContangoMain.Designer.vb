@@ -57,6 +57,7 @@ Partial Class frmContangoMain
         Label18 = New Label()
         Label17 = New Label()
         grpEntry = New GroupBox()
+        lblMinUSD = New Label()
         numRequoteMs = New NumericUpDown()
         LabelRQMs = New Label()
         numRequoteTicks = New NumericUpDown()
@@ -75,7 +76,6 @@ Partial Class frmContangoMain
         Label21 = New Label()
         grpLog = New GroupBox()
         txtLog = New RichTextBox()
-        Label6 = New Label()
         grpConnection.SuspendLayout()
         grpMarket.SuspendLayout()
         grpTime.SuspendLayout()
@@ -469,7 +469,7 @@ Partial Class frmContangoMain
         ' grpEntry
         ' 
         grpEntry.BackColor = Color.Lavender
-        grpEntry.Controls.Add(Label6)
+        grpEntry.Controls.Add(lblMinUSD)
         grpEntry.Controls.Add(numRequoteMs)
         grpEntry.Controls.Add(LabelRQMs)
         grpEntry.Controls.Add(numRequoteTicks)
@@ -495,6 +495,17 @@ Partial Class frmContangoMain
         grpEntry.TabIndex = 3
         grpEntry.TabStop = False
         grpEntry.Text = "Entry / Risk"
+        ' 
+        ' lblMinUSD
+        ' 
+        lblMinUSD.AutoSize = True
+        lblMinUSD.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblMinUSD.Location = New Point(144, 139)
+        lblMinUSD.Margin = New Padding(4, 0, 4, 0)
+        lblMinUSD.Name = "lblMinUSD"
+        lblMinUSD.Size = New Size(142, 21)
+        lblMinUSD.TabIndex = 16
+        lblMinUSD.Text = "Min USD for 1 step"
         ' 
         ' numRequoteMs
         ' 
@@ -692,17 +703,6 @@ Partial Class frmContangoMain
         txtLog.TabIndex = 0
         txtLog.Text = ""
         ' 
-        ' Label6
-        ' 
-        Label6.AutoSize = True
-        Label6.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
-        Label6.Location = New Point(144, 139)
-        Label6.Margin = New Padding(4, 0, 4, 0)
-        Label6.Name = "Label6"
-        Label6.Size = New Size(142, 21)
-        Label6.TabIndex = 16
-        Label6.Text = "Min USD for 1 step"
-        ' 
         ' frmContangoMain
         ' 
         AutoScaleDimensions = New SizeF(10F, 25F)
@@ -716,7 +716,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.5a"
+        Text = "Deribit Contango Basis Trader - V1.5b"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -787,5 +787,5 @@ Partial Class frmContangoMain
     Friend WithEvents LabelRQTicks As Label
     Friend WithEvents numRequoteMs As NumericUpDown
     Friend WithEvents LabelRQMs As Label
-    Friend WithEvents Label6 As Label
+    Friend WithEvents lblMinUSD As Label
 End Class

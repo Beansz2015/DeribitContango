@@ -276,13 +276,50 @@ Public Class frmContangoMain
         AppendLog($"ORDER {currency} id={oid} state={st} {instr} {side} px={If(px > 0D, px.ToString("0.00"), "-")} {amtStr}")
     End Sub
 
-
-
-
     Private Sub OnTradeUpdate(currency As String, payload As JObject)
-        Dim instr = payload.Value(Of String)("instrument_name")
-        AppendLog($"TRADE {currency} {instr}")
+        Try
+            Dim instr = payload.Value(Of String)("instrument_name")
+            Dim trades = payload("trades")
+            If trades Is Nothing OrElse trades.Type <> JTokenType.Array OrElse trades.Count = 0 Then Return
+
+            For Each t In trades
+                Dim sideStr = t.Value(Of String)("side")
+                If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
+
+                Dim px As Decimal = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+                ' Prefer explicit contracts for futures; otherwise derive from amount (USD) / 10
+                Dim contracts = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+                If contracts = 0 Then
+                    Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                    If amtUsd > 0D Then
+                        contracts = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                    End If
+                End If
+
+                ' For spot fills, show BTC amount; for futures, show contracts
+                Dim amtBtc As Decimal = 0D
+                If contracts = 0 Then
+                    ' Likely a spot trade; Deribit uses "amount" as base quantity
+                    amtBtc = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                End If
+
+                Dim idStr = t.Value(Of String)("trade_id")
+                Dim sideDisp = If(String.IsNullOrEmpty(sideStr), "-", sideStr)
+                Dim pxDisp = If(px > 0D, px.ToString("0.00"), "-")
+
+                If contracts > 0 Then
+                    AppendLog($"TRADE {currency} {instr} {sideDisp} px={pxDisp} contracts={contracts} id={idStr}")
+                Else
+                    AppendLog($"TRADE {currency} {instr} {sideDisp} px={pxDisp} amount={amtBtc:0.########} id={idStr}")
+                End If
+            Next
+
+        Catch ex As Exception
+            AppendLog("Trade log error: " & ex.Message)
+        End Try
     End Sub
+
 
     Private Sub OnUiTick(sender As Object, e As EventArgs)
         Try

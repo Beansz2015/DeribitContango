@@ -49,6 +49,26 @@ Namespace DeribitContango
         Private _fillMonCts As CancellationTokenSource = Nothing
         Private _lastObservedFilledContracts As Integer = 0
 
+        Public Enum SpotHedgeRounding
+            DownToStep = 0
+            NearestStep = 1
+        End Enum
+
+        Public Property HedgeRounding As SpotHedgeRounding = SpotHedgeRounding.DownToStep
+
+        ' Expose spot increment info for UI display if needed
+        Public ReadOnly Property SpotMinAmount As Decimal
+            Get
+                Return _spotMinAmount
+            End Get
+        End Property
+
+        Public ReadOnly Property SpotAmountStep As Decimal
+            Get
+                Return _spotAmountStep
+            End Get
+        End Property
+
 
         Public Sub New(api As DeribitApiClient, db As ContangoDatabase, monitor As ContangoBasisMonitor)
             _api = api
@@ -166,11 +186,41 @@ Namespace DeribitContango
             End If
         End Sub
 
+        'To help restrict input sizes to meaningful minimums
+        Private Function MinContractsForOneSpotStep(futRefPx As Decimal) As Integer
+            If futRefPx <= 0D Then Return 1
+            Return CInt(Math.Ceiling((_spotMinAmount * futRefPx) / 10D))
+        End Function
+
+        Public Function MinUsdForOneSpotStep(Optional futRefPx As Decimal = 0D) As Decimal
+            Dim ref = futRefPx
+            If ref <= 0D Then ref = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
+            If ref <= 0D Then Return 10D
+            Return CDec(Math.Ceiling((_spotMinAmount * ref) / 10D) * 10D)
+        End Function
+
+        Private Function RoundUsdToValidContracts(usd As Decimal, futRefPx As Decimal) As (usdRounded As Decimal, contracts As Integer)
+            ' Force 10-USD multiples and minimum contracts to achieve one spot step
+            Dim k = ComputeContractsFromUsd(usd)
+            Dim minK = MinContractsForOneSpotStep(futRefPx)
+            If k < minK Then k = minK
+            Dim usdOut = k * 10D
+            Return (usdOut, k)
+        End Function
+
+
         ' ============ Entry: futures first, spot on fills ============
 
         Public Async Function EnterBasisAsync(indexPrice As Decimal,
-                                              futBestBid As Decimal,
-                                              spotBestAsk As Decimal) As Task
+                                      futBestBid As Decimal,
+                                      spotBestAsk As Decimal) As Task
+            ' Block concurrent entries
+            SyncLock _lock
+                If _pendingFutContracts > 0 OrElse Not String.IsNullOrEmpty(_lastFutOrderId) Then
+                    Throw New ApplicationException("An active hedge is in progress; wait until it completes or cancel it before entering again.")
+                End If
+            End SyncLock
+
             Dim inputs = NormalizeInputs(indexPrice)
             Dim usdN As Decimal = inputs.targetUsd
 
@@ -185,7 +235,10 @@ Namespace DeribitContango
             If bid <= 0D Then Throw New ApplicationException("Futures price unavailable")
             Dim pxF = RoundToTick(bid, _futTick)
 
-            Dim contracts As Integer = ComputeContractsFromUsd(usdN)
+            ' Snap USD to valid contracts so the later spot hedge can be a single valid increment
+            Dim sized = RoundUsdToValidContracts(usdN, pxF)
+            usdN = sized.usdRounded
+            Dim contracts As Integer = sized.contracts
 
             Dim futOrder = Await _api.PlaceOrderAsync(
               instrument:=FuturesInstrument,
@@ -643,20 +696,33 @@ Namespace DeribitContango
 
 
 
-        Private Async Function PlaceSpotIOCForContractsAsync(contracts As Integer, refPx As Decimal) As Task
-            ' Compute BTC to buy from inverse contracts and price
-            Dim btcToBuy = ComputeBtcFromContracts(contracts, refPx)
-            If btcToBuy <= 0D Then Return
+        Private Async Function PlaceSpotIOCForContractsAsync(newDeltaContracts As Integer, refPx As Decimal) As Task
+            If newDeltaContracts <= 0 OrElse refPx <= 0D Then Return
 
-            ' Round to spot increments
+            ' Convert contracts to BTC via inverse sizing
+            Dim btc As Decimal = (newDeltaContracts * 10D) / refPx
+
+            ' Use exchange increments strictly, no residual carry
             Await RefreshInstrumentSpecsAsync()
-            Dim amt = RoundDownToStep(btcToBuy, _spotAmountStep)
-            If amt < _spotMinAmount Then Return
+            Dim amt As Decimal
+            If HedgeRounding = SpotHedgeRounding.NearestStep Then
+                Dim steps = Math.Round(btc / _spotAmountStep, MidpointRounding.AwayFromZero)
+                amt = steps * _spotAmountStep
+            Else
+                amt = RoundDownToStep(btc, _spotAmountStep)
+            End If
 
-            ' Compute a marketable limit at spot mid plus slippage bps
+            If amt < _spotMinAmount Then
+                RaiseEvent Info($"hedge: computed {btc:0.########} BTC < min {_spotMinAmount}; skipping hedge in single-position mode")
+                Return
+            End If
+
             Dim mid = _monitor.SpotMid
             If mid <= 0D Then mid = If(_monitor.SpotBestAsk > 0D, _monitor.SpotBestAsk, _monitor.IndexPriceUsd)
-            If mid <= 0D Then Return
+            If mid <= 0D Then
+                RaiseEvent Info("hedge: spot price unavailable; will retry on next fill/state tick")
+                Return
+            End If
             Dim limitUp = RoundToTick(mid * (1D + MaxSlippageBps / 10000D), _spotTick)
 
             Dim spotOrder = Await _api.PlaceOrderAsync(
@@ -666,11 +732,12 @@ Namespace DeribitContango
     price:=limitUp,
     orderType:="limit",
     tif:="immediate_or_cancel",
-    label:="ContangoSpotIOC (poll)"
+    label:="ContangoSpotIOC (single)"
   )
             TrackOrder(spotOrder)
-            RaiseEvent Info($"Spot IOC hedge (poll) placed amt={amt:0.########} px<= {limitUp:0.00}")
+            RaiseEvent Info($"Spot IOC hedge placed amt={amt:0.########} px<= {limitUp:0.00} (no residual mode)")
         End Function
+
 
 
         ' ============ Watchdog: cancel unfilled futures on timeout or decay ============

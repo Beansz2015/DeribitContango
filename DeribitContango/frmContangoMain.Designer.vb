@@ -75,6 +75,7 @@ Partial Class frmContangoMain
         Label21 = New Label()
         grpLog = New GroupBox()
         txtLog = New RichTextBox()
+        Label6 = New Label()
         grpConnection.SuspendLayout()
         grpMarket.SuspendLayout()
         grpTime.SuspendLayout()
@@ -468,6 +469,7 @@ Partial Class frmContangoMain
         ' grpEntry
         ' 
         grpEntry.BackColor = Color.Lavender
+        grpEntry.Controls.Add(Label6)
         grpEntry.Controls.Add(numRequoteMs)
         grpEntry.Controls.Add(LabelRQMs)
         grpEntry.Controls.Add(numRequoteTicks)
@@ -614,10 +616,10 @@ Partial Class frmContangoMain
         ' 
         ' txtAmount
         ' 
-        txtAmount.Location = New Point(123, 103)
+        txtAmount.Location = New Point(144, 103)
         txtAmount.Margin = New Padding(4, 5, 4, 5)
         txtAmount.Name = "txtAmount"
-        txtAmount.Size = New Size(345, 31)
+        txtAmount.Size = New Size(324, 31)
         txtAmount.TabIndex = 4
         txtAmount.Text = "1000"
         ' 
@@ -690,6 +692,17 @@ Partial Class frmContangoMain
         txtLog.TabIndex = 0
         txtLog.Text = ""
         ' 
+        ' Label6
+        ' 
+        Label6.AutoSize = True
+        Label6.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        Label6.Location = New Point(144, 139)
+        Label6.Margin = New Padding(4, 0, 4, 0)
+        Label6.Name = "Label6"
+        Label6.Size = New Size(142, 21)
+        Label6.TabIndex = 16
+        Label6.Text = "Min USD for 1 step"
+        ' 
         ' frmContangoMain
         ' 
         AutoScaleDimensions = New SizeF(10F, 25F)
@@ -703,7 +716,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.5"
+        Text = "Deribit Contango Basis Trader - V1.5a"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -774,4 +787,5 @@ Partial Class frmContangoMain
     Friend WithEvents LabelRQTicks As Label
     Friend WithEvents numRequoteMs As NumericUpDown
     Friend WithEvents LabelRQMs As Label
+    Friend WithEvents Label6 As Label
 End Class

@@ -49,6 +49,10 @@ Namespace DeribitContango
         Private _fillMonCts As CancellationTokenSource = Nothing
         Private _lastObservedFilledContracts As Integer = 0
 
+        ' Track contracts seen from per-order trades to compute deltas robustly
+        Private _lastObservedOrderTradeContracts As Integer = 0
+
+
         Public Enum SpotHedgeRounding
             DownToStep = 0
             NearestStep = 1
@@ -528,19 +532,17 @@ Namespace DeribitContango
             End Set
         End Property
 
-        ' Track contracts seen from per-order trades to compute deltas robustly
-        Private _lastObservedOrderTradeContracts As Integer = 0
-
         Private Sub StartFillMonitorLoop()
             Try
                 StopFillMonitorLoop()
-                _fillMonCts = New Threading.CancellationTokenSource()
+                _fillMonCts = New CancellationTokenSource()
                 _lastObservedFilledContracts = 0
                 _lastObservedOrderTradeContracts = 0
                 Task.Run(Function() FillMonitorLoopAsync(_fillMonCts.Token))
             Catch
             End Try
         End Sub
+
 
 
         Private Sub StopFillMonitorLoop()
@@ -634,6 +636,9 @@ Namespace DeribitContango
                         ' 3) If trades slice exists, hedge from slice
                         If sliceContracts > 0 AndAlso sliceVwap > 0D Then
                             RaiseEvent Info($"poll: trades delta={sliceContracts} vwap={sliceVwap:0.00}")
+                            SyncLock _lock
+                                _pendingFutContracts = Math.Max(0, _pendingFutContracts - sliceContracts)
+                            End SyncLock
                             Await PlaceSpotIOCForContractsAsync(sliceContracts, sliceVwap)
                             _lastObservedOrderTradeContracts += sliceContracts
 
@@ -665,6 +670,9 @@ Namespace DeribitContango
 
                             If deltaInc > 0 AndAlso avgPxOrder > 0D Then
                                 RaiseEvent Info($"poll: state delta={deltaInc} avg={avgPxOrder:0.00}")
+                                SyncLock _lock
+                                    _pendingFutContracts = Math.Max(0, _pendingFutContracts - deltaInc)
+                                End SyncLock
                                 Await PlaceSpotIOCForContractsAsync(deltaInc, avgPxOrder)
                                 _lastObservedFilledContracts = filledNow
                             End If

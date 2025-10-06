@@ -1,5 +1,6 @@
-﻿Imports Newtonsoft.Json.Linq
+﻿Imports System.Reflection.Emit
 Imports System.Text
+Imports Newtonsoft.Json.Linq
 
 Public Class frmContangoMain
 
@@ -266,6 +267,9 @@ Public Class frmContangoMain
 
             Dim a = _mon.AnnualizedFromWeekly()
             lblAnnual.Text = (a * 100D).ToString("0.00") & "%"
+
+            Dim futRef = If(_mon.WeeklyFutureBestBid > 0D, _mon.WeeklyFutureBestBid, _mon.WeeklyFutureMark)
+            lblMinUSD.Text = $"Min USD for 1 step: {_pm.MinUsdForOneSpotStep(futRef):0}"
 
             UpdateExpiryLabels()
 

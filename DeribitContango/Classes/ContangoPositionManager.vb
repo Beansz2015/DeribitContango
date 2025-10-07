@@ -56,6 +56,14 @@ Namespace DeribitContango
         Private _isActive As Boolean = False
         Public Event ActiveChanged(isActive As Boolean)
 
+        ' Live spot hedge size in BTC (no residual policy for entry; used for close)
+        Private _openSpotHedgeBtc As Decimal = 0D
+
+        ' Close-side re-quote
+        Private _closeRequoteCts As CancellationTokenSource = Nothing
+        Private _lastCloseOrderId As String = Nothing
+
+
         ' Is the fill monitor running now?
         Private ReadOnly Property IsFillMonitorActive As Boolean
             Get
@@ -311,6 +319,7 @@ Namespace DeribitContango
             If String.IsNullOrEmpty(state) Then state = payload.Value(Of String)("order_state")
             If String.IsNullOrEmpty(state) Then Return
 
+            ' Entry-side futures order lifecycle
             If orderId = _lastFutOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
                 StopRequoteLoop()
                 StopFillMonitorLoop()
@@ -323,6 +332,12 @@ Namespace DeribitContango
                 RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
             End If
 
+            ' Close-side futures order lifecycle
+            If orderId = _lastCloseOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
+                StopCloseRequoteLoop()
+                _lastCloseOrderId = Nothing
+                RaiseEvent Info($"Close order {orderId} {state}; close re-quote loop stopped.")
+            End If
 
             SyncLock _lock
                 If _openOrderIds.Contains(orderId) AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
@@ -330,6 +345,7 @@ Namespace DeribitContango
                 End If
             End SyncLock
         End Sub
+
 
         ' Futures fills -> buy spot IOC; Spot fills -> persist
         Private Async Sub OnTradeUpdate(currency As String, payload As JObject)
@@ -383,7 +399,6 @@ Namespace DeribitContango
                     End If
                 End If
 
-
             ElseIf instrument = SpotInstrument Then
                 For Each t In trades
                     Dim sideStr = t.Value(Of String)("side")
@@ -393,8 +408,16 @@ Namespace DeribitContango
                     Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
                     Dim feeCcy = t.Value(Of String)("fee_currency")
                     _db.SaveTrade(t.Value(Of String)("trade_id"), DateTime.UtcNow, If(String.IsNullOrEmpty(sideStr), "", sideStr), instrument, amt, Nothing, px, feeCcy, fee)
+
+                    ' Track live BTC hedge for Close Monitor
+                    If Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("buy", StringComparison.OrdinalIgnoreCase) Then
+                        _openSpotHedgeBtc += amt
+                    ElseIf Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
+                        _openSpotHedgeBtc = Math.Max(0D, _openSpotHedgeBtc - amt)
+                    End If
                 Next
             End If
+
         End Sub
 
         ' ============ Re-quote loop ============
@@ -735,44 +758,30 @@ Namespace DeribitContango
         Private Async Function PlaceSpotIOCForContractsAsync(newDeltaContracts As Integer, refPx As Decimal) As Task
             If newDeltaContracts <= 0 OrElse refPx <= 0D Then Return
 
-            ' Convert contracts to BTC via inverse sizing
+            ' Convert inverse futures contracts to BTC
             Dim btc As Decimal = (newDeltaContracts * 10D) / refPx
 
-            ' Use exchange increments strictly, no residual carry
+            ' Snap to exchange increments with no residual carry
             Await RefreshInstrumentSpecsAsync()
-            Dim amt As Decimal
-            If HedgeRounding = SpotHedgeRounding.NearestStep Then
-                Dim steps = Math.Round(btc / _spotAmountStep, MidpointRounding.AwayFromZero)
-                amt = steps * _spotAmountStep
-            Else
-                amt = RoundDownToStep(btc, _spotAmountStep)
-            End If
-
+            Dim amt As Decimal = RoundDownToStep(btc, _spotAmountStep)
             If amt < _spotMinAmount Then
-                RaiseEvent Info($"hedge: computed {btc:0.########} BTC < min {_spotMinAmount}; skipping hedge in single-position mode")
+                RaiseEvent Info($"hedge: computed {btc:0.########} BTC < min {_spotMinAmount}; skipped (market_limit)")
                 Return
             End If
 
-            Dim mid = _monitor.SpotMid
-            If mid <= 0D Then mid = If(_monitor.SpotBestAsk > 0D, _monitor.SpotBestAsk, _monitor.IndexPriceUsd)
-            If mid <= 0D Then
-                RaiseEvent Info("hedge: spot price unavailable; will retry on next fill/state tick")
-                Return
-            End If
-            Dim limitUp = RoundToTick(mid * (1D + MaxSlippageBps / 10000D), _spotTick)
-
+            ' Market‑Limit: taker execute now, remainder rests at exec price; no price sent
             Dim spotOrder = Await _api.PlaceOrderAsync(
     instrument:=SpotInstrument,
     side:="buy",
     amount:=amt,
-    price:=limitUp,
-    orderType:="limit",
-    tif:="immediate_or_cancel",
-    label:="ContangoSpotIOC (single)"
+    orderType:="market_limit",
+    tif:="good_til_cancelled",
+    label:="ContangoSpotML_Enter"
   )
             TrackOrder(spotOrder)
-            RaiseEvent Info($"Spot IOC hedge placed amt={amt:0.########} px<= {limitUp:0.00} (no residual mode)")
+            RaiseEvent Info($"Spot market_limit hedge placed amt={amt:0.########} (no residual mode)")
         End Function
+
 
 
 
@@ -814,6 +823,8 @@ Namespace DeribitContango
                     Await _api.CancelOrderAsync(oid)
                     RaiseEvent Info($"Watchdog: cancelled resting futures order id={oid}")
                     StopFillMonitorLoop()
+                    StopCloseMonitorLoop()
+
                 Catch
                 End Try
                 StopRequoteLoop()
@@ -859,27 +870,51 @@ Namespace DeribitContango
 
         Public Async Function CloseAllAsync() As Task
             Try
+                ' 1) Read current futures position size for the selected weekly
+                Dim szShort As Integer = 0
                 Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
                 For Each p In posArr
                     Dim o = p.Value(Of JObject)()
-                    Dim name = o.Value(Of String)("instrument_name")
-                    Dim sz = o.Value(Of Integer)("size")
-                    If sz < 0 Then
-                        Dim contracts = Math.Abs(sz)
-                        Dim closeBuy = Await _api.PlaceOrderAsync(
-                          instrument:=name,
-                          side:="buy",
-                          contracts:=contracts,
-                          orderType:="market",
-                          tif:="immediate_or_cancel",
-                          reduceOnly:=True,
-                          label:="ContangoClose"
-                        )
-                        TrackOrder(closeBuy)
+                    If o.Value(Of String)("instrument_name") = FuturesInstrument Then
+                        Dim sz = o.Value(Of Integer)("size")
+                        If sz < 0 Then szShort = Math.Abs(sz)
+                        Exit For
                     End If
                 Next
-            Catch
+
+                ' 2) If short exists, place reduce_only buy LIMIT at best ask (rounded)
+                If szShort > 0 Then
+                    Await RefreshInstrumentSpecsAsync()
+                    Dim ask = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
+                    If ask <= 0D Then ask = _monitor.WeeklyFutureMark
+                    Dim pxAsk = RoundToTick(ask, _futTick)
+
+                    Dim closeBuy = Await _api.PlaceOrderAsync(
+        instrument:=FuturesInstrument,
+        side:="buy",
+        contracts:=szShort,
+        price:=pxAsk,
+        orderType:="limit",
+        tif:="good_til_cancelled",
+        postOnly:=True,            ' maker on futures close
+        reduceOnly:=True,
+        label:="ContangoClose_ROL"
+      )
+                    TrackOrder(closeBuy)
+                    Dim o = closeBuy?("order")?.Value(Of JObject)()
+                    _lastCloseOrderId = o?.Value(Of String)("order_id")
+                    RaiseEvent Info($"CloseAll: futures reduce_only LIMIT sent px={pxAsk:0.00} contracts={szShort} id={_lastCloseOrderId}")
+                    ' 3) Chase the ask by 2–3 ticks with a dedicated close-side re-quote loop
+                    StartCloseRequoteLoop()
+                Else
+                    RaiseEvent Info("CloseAll: no short futures position detected.")
+                End If
+
+            Catch ex As Exception
+                RaiseEvent Info("CloseAll error: " & ex.Message)
             End Try
+
+            ' Keep entry-side loops off and UI released while the close runs
             StopRequoteLoop()
             StopFillMonitorLoop()
             SyncLock _lock
@@ -888,6 +923,184 @@ Namespace DeribitContango
             End SyncLock
             _lastFutOrderId = Nothing
             SetActive(False)
+        End Function
+
+
+        Private Sub StartCloseRequoteLoop()
+            Try
+                StopCloseRequoteLoop()
+                If String.IsNullOrEmpty(_lastCloseOrderId) Then Return
+                _closeRequoteCts = New CancellationTokenSource()
+                Task.Run(Function() CloseRequoteLoopAsync(_closeRequoteCts.Token))
+            Catch
+            End Try
+        End Sub
+
+        Private Sub StopCloseRequoteLoop()
+            Try
+                _closeRequoteCts?.Cancel()
+            Catch
+            End Try
+        End Sub
+
+        Private Async Function CloseRequoteLoopAsync(ct As Threading.CancellationToken) As Task
+            While Not ct.IsCancellationRequested
+                Dim doDelay As Boolean = False
+                Try
+                    If String.IsNullOrEmpty(_lastCloseOrderId) Then Exit While
+
+                    ' If the order is terminal, stop
+                    Dim cur = Await _api.GetOrderStateAsync(_lastCloseOrderId)
+                    If cur Is Nothing Then
+                        doDelay = True
+                    Else
+                        Dim ordState As String = cur.Value(Of String)("order_state")
+                        If String.IsNullOrEmpty(ordState) Then ordState = cur.Value(Of String)("state")
+                        If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
+                            Exit While
+                        End If
+
+                        ' Compute target ask tick
+                        Dim bestAsk = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
+                        If bestAsk <= 0D Then
+                            doDelay = True
+                        Else
+                            Dim targetPx = RoundToTick(bestAsk, _futTick)
+                            Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+                            ' Tick delta; chase by 2–3 ticks to limit churn
+                            Dim tickSteps As Integer = 0
+                            If _futTick > 0D AndAlso curPx > 0D Then
+                                tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
+                            End If
+
+                            If Math.Abs(tickSteps) >= _requoteMinTicksBacking AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
+                                Dim edited As Boolean = False
+                                Try
+                                    ' Prefer cancel+repost for consistent reduce_only+post_only semantics on some venues
+                                    Await _api.CancelOrderAsync(_lastCloseOrderId)
+                                    Dim repost = Await _api.PlaceOrderAsync(
+                instrument:=FuturesInstrument,
+                side:="buy",
+                contracts:=cur?.Value(Of Integer?)("amount").GetValueOrDefault(0),
+                price:=targetPx,
+                orderType:="limit",
+                tif:="good_til_cancelled",
+                postOnly:=True,
+                reduceOnly:=True,
+                label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
+              )
+                                    Dim ro = repost?("order")?.Value(Of JObject)()
+                                    Dim newId = ro?.Value(Of String)("order_id")
+                                    If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId
+                                    edited = True
+                                    RaiseEvent Info($"Close re-quote: price -> {targetPx:0.00}, id={_lastCloseOrderId}")
+                                Catch
+                                    edited = False
+                                End Try
+
+                                If Not edited Then
+                                    ' If edit/repost failed, just pace and retry
+                                    doDelay = True
+                                End If
+
+                            Else
+                                ' No meaningful improvement; pace
+                                doDelay = True
+                            End If
+                        End If
+                    End If
+
+                Catch ex As TaskCanceledException
+                    Exit While
+                Catch
+                    doDelay = True
+                End Try
+
+                If doDelay Then
+                    Try
+                        Await Task.Delay(RequoteIntervalMs, ct)
+                    Catch
+                        Exit While
+                    End Try
+                End If
+            End While
+        End Function
+
+
+
+        'Close monitor : when futures is flat and spot hedge exists, unwind spot
+
+        Private _closeMonCts As Threading.CancellationTokenSource = Nothing
+
+        Private Sub StartCloseMonitorLoop()
+            Try
+                StopCloseMonitorLoop()
+                _closeMonCts = New Threading.CancellationTokenSource()
+                Task.Run(Function() CloseMonitorLoopAsync(_closeMonCts.Token))
+                RaiseEvent Info("CloseMonitor: started (watching futures to unwind spot).")
+            Catch
+            End Try
+        End Sub
+
+        Private Sub StopCloseMonitorLoop()
+            Try
+                _closeMonCts?.Cancel()
+            Catch
+            End Try
+        End Sub
+
+        Private Async Function CloseMonitorLoopAsync(ct As Threading.CancellationToken) As Task
+            While Not ct.IsCancellationRequested
+                Dim doDelay As Boolean = False
+                Try
+                    ' Query current size of the selected weekly future
+                    Dim curSz As Integer = 0
+                    Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+                    For Each p In posArr
+                        Dim o = p.Value(Of JObject)()
+                        If o.Value(Of String)("instrument_name") = FuturesInstrument Then
+                            curSz = o.Value(Of Integer)("size")
+                            Exit For
+                        End If
+                    Next
+
+                    ' If futures is flat and there is spot hedge to unwind, send market_limit sell
+                    If curSz = 0 AndAlso _openSpotHedgeBtc >= _spotMinAmount Then
+                        Await RefreshInstrumentSpecsAsync()
+                        Dim amt = RoundDownToStep(_openSpotHedgeBtc, _spotAmountStep)
+                        If amt >= _spotMinAmount Then
+                            Dim sell = Await _api.PlaceOrderAsync(
+            instrument:=SpotInstrument,
+            side:="sell",
+            amount:=amt,
+            orderType:="market_limit",
+            tif:="good_til_cancelled",
+            label:="ContangoSpotML_Close"
+          )
+                            TrackOrder(sell)
+                            RaiseEvent Info($"CloseMonitor: Spot market_limit sell placed amt={amt:0.########}")
+                        Else
+                            RaiseEvent Info("CloseMonitor: spot amount below min_trade_amount; nothing to sell.")
+                        End If
+                        Exit While
+                    End If
+
+                    doDelay = True
+                Catch ex As TaskCanceledException
+                    Exit While
+                Catch
+                    doDelay = True
+                End Try
+
+                If doDelay Then
+                    Try
+                        Await Task.Delay(300, ct)
+                    Catch
+                        Exit While
+                    End Try
+                End If
+            End While
         End Function
 
 

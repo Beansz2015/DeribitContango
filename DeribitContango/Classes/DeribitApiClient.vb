@@ -86,32 +86,37 @@ Namespace DeribitContango
         End Function
 
         Public Async Function PlaceOrderAsync(instrument As String,
-                                              side As String, ' "buy" or "sell"
-                                              Optional amount As Decimal? = Nothing,
-                                              Optional contracts As Integer? = Nothing,
-                                              Optional price As Decimal? = Nothing,
-                                              Optional orderType As String = "limit",
-                                              Optional tif As String = "good_til_cancelled",
-                                              Optional postOnly As Boolean? = Nothing,
-                                              Optional reduceOnly As Boolean? = Nothing,
-                                              Optional label As String = Nothing) As Task(Of JObject)
+                                      side As String,
+                                      Optional amount As Decimal? = Nothing,
+                                      Optional contracts As Integer? = Nothing,
+                                      Optional price As Decimal? = Nothing,
+                                      Optional orderType As String = "limit",
+                                      Optional tif As String = "good_til_cancelled",
+                                      Optional postOnly As Boolean? = Nothing,
+                                      Optional reduceOnly As Boolean? = Nothing,
+                                      Optional label As String = Nothing) As Task(Of JObject)
+            Dim req As New JObject From {
+    {"instrument_name", instrument},
+    {"type", orderType}
+  }
+            If Not String.IsNullOrEmpty(side) Then req("side") = side
+            If amount.HasValue Then req("amount") = amount.Value
+            If contracts.HasValue Then req("amount") = contracts.Value
+            If Not String.IsNullOrEmpty(tif) Then req("time_in_force") = tif
+            If postOnly.HasValue Then req("post_only") = postOnly.Value
+            If reduceOnly.HasValue Then req("reduce_only") = reduceOnly.Value
+            If Not String.IsNullOrEmpty(label) Then req("label") = label
 
-            Dim method As String = If(side = "buy", "private/buy", "private/sell")
-            Dim p As New JObject From {
-              {"instrument_name", instrument},
-              {"type", orderType},
-              {"time_in_force", tif}
-            }
-            If price.HasValue Then p("price") = price.Value
-            If amount.HasValue Then p("amount") = amount.Value
-            If contracts.HasValue Then p("contracts") = contracts.Value
-            If postOnly.HasValue Then p("post_only") = postOnly.Value
-            If reduceOnly.HasValue Then p("reduce_only") = reduceOnly.Value
-            If Not String.IsNullOrEmpty(label) Then p("label") = label
+            ' Only include price for limit orders; market_limit must NOT send price
+            If orderType.Equals("limit", StringComparison.OrdinalIgnoreCase) AndAlso price.HasValue Then
+                req("price") = price.Value
+            End If
 
-            Dim res = Await SendAsync(method, p)
-            Return res("result").Value(Of JObject)()
+            Dim method As String = If(side.Equals("buy", StringComparison.OrdinalIgnoreCase), "private/buy", "private/sell")
+            Dim res = Await SendAsync(method, req)
+            Return res("result")?.Value(Of JObject)()
         End Function
+
 
         Public Async Function EditOrderAsync(orderId As String,
                                              Optional amount As Decimal? = Nothing,
@@ -289,6 +294,20 @@ Namespace DeribitContango
             Return arr
         End Function
 
+        ' Close entire position by instrument with a market or limit close
+        Public Async Function ClosePositionAsync(instrument As String,
+                                         closeType As String,   ' "market" or "limit"
+                                         Optional price As Decimal? = Nothing) As Task(Of JObject)
+            Dim p As New JObject From {
+    {"instrument_name", instrument},
+    {"type", closeType}
+  }
+            If closeType.Equals("limit", StringComparison.OrdinalIgnoreCase) AndAlso price.HasValue Then
+                p("price") = price.Value
+            End If
+            Dim res = Await SendAsync("private/close_position", p)
+            Return res("result")?.Value(Of JObject)()
+        End Function
 
 
         Public Sub Dispose() Implements IDisposable.Dispose

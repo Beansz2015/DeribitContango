@@ -107,7 +107,6 @@ Namespace DeribitContango
             If reduceOnly.HasValue Then req("reduce_only") = reduceOnly.Value
             If Not String.IsNullOrEmpty(label) Then req("label") = label
 
-            ' Only include price for limit orders; market_limit must NOT send price
             If orderType.Equals("limit", StringComparison.OrdinalIgnoreCase) AndAlso price.HasValue Then
                 req("price") = price.Value
             End If
@@ -116,6 +115,7 @@ Namespace DeribitContango
             Dim res = Await SendAsync(method, req)
             Return res("result")?.Value(Of JObject)()
         End Function
+
 
 
         Public Async Function EditOrderAsync(orderId As String,

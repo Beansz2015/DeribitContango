@@ -843,30 +843,45 @@ Namespace DeribitContango
         Public Async Function RollToNextWeeklyAsync(indexPrice As Decimal) As Task
             If String.IsNullOrEmpty(FuturesInstrument) Then Throw New ApplicationException("No active weekly instrument")
 
+            ' Close current short via reduce_only LIMIT at best ask (maker)
             Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
             Dim curContracts As Integer = 0
             For Each p In posArr
                 Dim o = p.Value(Of JObject)()
                 If o.Value(Of String)("instrument_name") = FuturesInstrument Then
                     curContracts = Math.Abs(o.Value(Of Integer)("size"))
+                    Exit For
                 End If
             Next
             If curContracts > 0 Then
+                Await RefreshInstrumentSpecsAsync()
+                Dim ask = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
+                If ask <= 0D Then ask = _monitor.WeeklyFutureMark
+                Dim pxAsk = RoundToTick(ask, _futTick)
+
                 Dim closeBuy = Await _api.PlaceOrderAsync(
-                  instrument:=FuturesInstrument,
-                  side:="buy",
-                  contracts:=curContracts,
-                  orderType:="market",
-                  tif:="immediate_or_cancel",
-                  reduceOnly:=True,
-                  label:="ContangoRollClose"
-                )
+      instrument:=FuturesInstrument,
+      side:="buy",
+      contracts:=curContracts,
+      price:=pxAsk,
+      orderType:="limit",
+      tif:="good_til_cancelled",
+      postOnly:=True,
+      reduceOnly:=True,
+      label:="ContangoRollClose"
+    )
                 TrackOrder(closeBuy)
+                Dim o = closeBuy?("order")?.Value(Of JObject)()
+                _lastCloseOrderId = o?.Value(Of String)("order_id")
+                StartCloseRequoteLoop()
+                StartCloseMonitorLoop()
             End If
 
+            ' Pick next weekly beyond current expiry
             Dim curExp = ExpiryUtc
             Await DiscoverNearestWeeklyAsync(curExp)
         End Function
+
 
         Public Async Function CloseAllAsync() As Task
             Try
@@ -904,8 +919,10 @@ Namespace DeribitContango
                     Dim o = closeBuy?("order")?.Value(Of JObject)()
                     _lastCloseOrderId = o?.Value(Of String)("order_id")
                     RaiseEvent Info($"CloseAll: futures reduce_only LIMIT sent px={pxAsk:0.00} contracts={szShort} id={_lastCloseOrderId}")
-                    ' 3) Chase the ask by 2–3 ticks with a dedicated close-side re-quote loop
+
+                    ' 3) Chase the ask by 2–3 ticks and start close monitor for spot unwind
                     StartCloseRequoteLoop()
+                    StartCloseMonitorLoop()
                 Else
                     RaiseEvent Info("CloseAll: no short futures position detected.")
                 End If
@@ -924,6 +941,7 @@ Namespace DeribitContango
             _lastFutOrderId = Nothing
             SetActive(False)
         End Function
+
 
 
         Private Sub StartCloseRequoteLoop()

@@ -696,7 +696,6 @@ Namespace DeribitContango
                         End If
 
                         ' 5) Stop conditions on terminal order state
-                        ' 5) Stop conditions on terminal order state
                         If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
                             ' Terminal guard: if fully filled (no pending), or cancelled/rejected,
                             ' release the UI immediately even if private order update is delayed.

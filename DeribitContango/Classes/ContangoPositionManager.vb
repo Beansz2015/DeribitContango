@@ -276,26 +276,30 @@ Namespace DeribitContango
             Dim sized = RoundUsdToValidContracts(usdN, pxF)
             usdN = sized.usdRounded
             Dim contracts As Integer = sized.contracts
-            Dim amountUsd As Decimal = contracts * 10D
+            Dim amountUsd As Integer = contracts * 10  ' Deribit inverse futures: 10 USD per contract
 
             Dim futOrder = Await _api.PlaceOrderAsync(
-  instrument:=FuturesInstrument,
-  side:="sell",
-  amount:=amountUsd,                 ' <-- USD notional for inverse futures
-  price:=pxF,
-  orderType:="limit",
-  tif:="good_til_cancelled",
-  postOnly:=True,
-  reduceOnly:=False,
-  label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
-)
+    instrument:=FuturesInstrument,
+    side:="sell",
+    amount:=amountUsd,              ' USD notional required for futures
+    price:=pxF,
+    orderType:="limit",
+    tif:="good_til_cancelled",
+    postOnly:=True,
+    reduceOnly:=False,
+    label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
+  )
             TrackOrder(futOrder)
 
+            ' Use exchange-acknowledged price for logging to match the platform
+            Dim ackPx As Decimal = pxF
             Try
                 Dim o = futOrder?("order")?.Value(Of JObject)()
                 _lastFutOrderId = o?.Value(Of String)("order_id")
+                Dim oPx = o?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                If oPx > 0D Then ackPx = oPx
             Catch
-                _lastFutOrderId = Nothing
+                _lastFutOrderId = _lastFutOrderId
             End Try
 
             SyncLock _lock
@@ -305,12 +309,14 @@ Namespace DeribitContango
 
             SetActive(True)
 
-            ' Start watchdog and re-quote loop
             StartHedgeFallbackTimer()
             StartRequoteLoop()
-            StartFillMonitorLoop() ' NEW: poll order state to hedge on fills even without private events
-            RaiseEvent Info($"Futures post_only placed at {pxF:0.00}, contracts={contracts}, order_id={_lastFutOrderId}")
+            StartFillMonitorLoop()
+
+            RaiseEvent Info($"Futures post_only placed at {ackPx:0.00}, contracts={contracts}, order_id={_lastFutOrderId}")
+            RaiseEvent Info("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
         End Function
+
 
         ' Futures private order updates (open/filled/cancelled) for cleanup
         Private Sub OnOrderUpdate(currency As String, payload As JObject)
@@ -441,105 +447,108 @@ Namespace DeribitContango
 
         Private Async Function RequoteLoopAsync(ct As Threading.CancellationToken) As Task
             While Not ct.IsCancellationRequested
-                Dim doRetryDelay As Boolean = False
-
+                Dim doDelay As Boolean = False
                 Try
-                    ' Stop if nothing pending or order missing
-                    If _pendingFutContracts <= 0 OrElse String.IsNullOrEmpty(_lastFutOrderId) Then
-                        Exit While
-                    End If
+                    If String.IsNullOrEmpty(_lastFutOrderId) Then Exit While
 
-                    ' Basis must still be valid
-                    Dim basisNow As Decimal = _monitor.BasisMid
-                    If basisNow < EntryThreshold Then
-                        Await Task.Delay(RequoteIntervalMs, ct)
-                        Continue While
-                    End If
-
-                    ' Market context
-                    Dim bestBid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
-                    If bestBid <= 0D Then
-                        Await Task.Delay(RequoteIntervalMs, ct)
-                        Continue While
-                    End If
-                    Dim targetPx = RoundToTick(bestBid, _futTick)
-
-                    ' Current order state/price
-                    Dim curState = Await _api.GetOrderStateAsync(_lastFutOrderId)
-                    Dim curPx As Decimal = curState?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                    Dim ordState As String = curState?.Value(Of String)("order_state")
-                    If String.IsNullOrEmpty(ordState) Then ordState = curState?.Value(Of String)("state")
-
-                    If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
-                        Exit While
-                    End If
-
-                    ' Tick improvement calculation
-                    Dim tickSteps As Integer = 0
-                    If _futTick > 0D Then
-                        tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
-                    End If
-
-                    ' Guard: require improvement within [RequoteMinTicks .. 3] ticks
-                    If tickSteps < RequoteMinTicks OrElse tickSteps > 3 Then
-                        Await Task.Delay(RequoteIntervalMs, ct)
-                        Continue While
-                    End If
-
-                    ' Try in-place edit with post_only
-                    Dim edited As Boolean = False
-                    Try
-                        Dim editRes = Await _api.EditOrderAsync(_lastFutOrderId, price:=targetPx, postOnly:=True)
-                        Dim eord = editRes?("order")?.Value(Of JObject)()
-                        Dim st = eord?.Value(Of String)("order_state")
-                        If String.IsNullOrEmpty(st) Then st = eord?.Value(Of String)("state")
-                        edited = (st IsNot Nothing)
-                    Catch
-                        edited = False
-                    End Try
-
-                    If edited Then
-                        RaiseEvent Info($"Re-quote edit: price -> {targetPx:0.00}")
+                    ' Pull current order state
+                    Dim cur = Await _api.GetOrderStateAsync(_lastFutOrderId)
+                    If cur Is Nothing Then
+                        doDelay = True
                     Else
-                        ' Cancel & repost if edit failed (likely post_only cross)
-                        Try
-                            Await _api.CancelOrderAsync(_lastFutOrderId)
-                        Catch
-                            ' ignore
-                        End Try
+                        Dim ordState As String = cur.Value(Of String)("order_state")
+                        If String.IsNullOrEmpty(ordState) Then ordState = cur.Value(Of String)("state")
+                        If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
+                            Exit While
+                        End If
 
-                        Dim repost = Await _api.PlaceOrderAsync(
-  instrument:=FuturesInstrument,
-  side:="sell",
-  amount:=_pendingFutContracts * 10,   ' USD notional (10 USD per contract)
-  price:=targetPx,
-  orderType:="limit",
-  tif:="good_til_cancelled",
-  postOnly:=True,
-  reduceOnly:=False,
-  label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
-)
+                        ' Compute current target bid
+                        Dim bestBid = If(_monitor.WeeklyFutureBestBid > 0D, _monitor.WeeklyFutureBestBid, _monitor.WeeklyFutureMark)
+                        If bestBid <= 0D Then
+                            doDelay = True
+                        Else
+                            Dim targetPx = RoundToTick(bestBid, _futTick)
+                            Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
-                        Dim ro = repost?("order")?.Value(Of JObject)()
-                        Dim newId = ro?.Value(Of String)("order_id")
-                        If Not String.IsNullOrEmpty(newId) Then _lastFutOrderId = newId
-                        RaiseEvent Info($"Re-quote repost: price -> {targetPx:0.00}, id={_lastFutOrderId}")
+                            ' Tick delta vs. current resting
+                            Dim tickSteps As Integer = 0
+                            If _futTick > 0D AndAlso curPx > 0D Then
+                                tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
+                            End If
+
+                            ' Only edit/repost if improvement within guard band
+                            'If Math.Abs(tickSteps) >= _requoteMinTicks AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
+                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= 3 Then
+                                Dim edited As Boolean = False
+
+                                ' Try in-place edit first to preserve queue (post_only + limit)
+                                Try
+                                    Dim editRes = Await _api.EditOrderAsync(_lastFutOrderId, targetPx, Nothing, True)
+                                    edited = True
+                                    Dim eordPx As Decimal = targetPx
+                                    Try
+                                        Dim eord = editRes?("order")?.Value(Of JObject)()
+                                        Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                        If pxAck > 0D Then eordPx = pxAck
+                                    Catch
+                                    End Try
+                                    RaiseEvent Info($"Re-quote edit: price -> {eordPx:0.00}")
+                                Catch
+                                    edited = False
+                                End Try
+
+                                ' If edit failed (crossing risk or edit not allowed), cancel+repost
+                                If Not edited Then
+                                    Try
+                                        Await _api.CancelOrderAsync(_lastFutOrderId)
+
+                                        ' Use USD notional for futures amount
+                                        Dim amtUsd As Integer
+                                        SyncLock _lock
+                                            amtUsd = Math.Max(1, _pendingFutContracts) * 10
+                                        End SyncLock
+
+                                        Dim repost = Await _api.PlaceOrderAsync(
+                  instrument:=FuturesInstrument,
+                  side:="sell",
+                  amount:=amtUsd,           ' USD notional
+                  price:=targetPx,
+                  orderType:="limit",
+                  tif:="good_til_cancelled",
+                  postOnly:=True,
+                  reduceOnly:=False,
+                  label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
+                )
+                                        Dim ro = repost?("order")?.Value(Of JObject)()
+                                        Dim newId = ro?.Value(Of String)("order_id")
+                                        If Not String.IsNullOrEmpty(newId) Then _lastFutOrderId = newId
+
+                                        Dim roPx As Decimal = targetPx
+                                        Try
+                                            Dim pxAck = ro?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                            If pxAck > 0D Then roPx = pxAck
+                                        Catch
+                                        End Try
+
+                                        RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
+                                    Catch
+                                        ' ignore; pace and retry
+                                    End Try
+                                End If
+
+                            Else
+                                doDelay = True
+                            End If
+                        End If
                     End If
-
-                    ' Pace the loop
-                    Await Task.Delay(RequoteIntervalMs, ct)
-                    Continue While
 
                 Catch ex As TaskCanceledException
                     Exit While
-
                 Catch
-                    ' mark for retry pacing without awaiting inside Catch
-                    doRetryDelay = True
-
+                    doDelay = True
                 End Try
 
-                If doRetryDelay Then
+                If doDelay Then
                     Try
                         Await Task.Delay(RequoteIntervalMs, ct)
                     Catch
@@ -548,6 +557,7 @@ Namespace DeribitContango
                 End If
             End While
         End Function
+
 
 
         Public Property RequoteMinTicks As Integer
@@ -998,7 +1008,9 @@ Namespace DeribitContango
                                 tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
                             End If
 
-                            If Math.Abs(tickSteps) >= _requoteMinTicksBacking AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
+                            ' If Math.Abs(tickSteps) >= _requoteMinTicksBacking AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
+                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= 3 Then
+
                                 Dim edited As Boolean = False
                                 Try
                                     ' Prefer cancel+repost for consistent reduce_only+post_only semantics on some venues

@@ -88,31 +88,41 @@ Namespace DeribitContango
         Public Async Function PlaceOrderAsync(instrument As String,
                                       side As String,
                                       Optional amount As Decimal? = Nothing,
-                                      Optional contracts As Integer? = Nothing,
                                       Optional price As Decimal? = Nothing,
                                       Optional orderType As String = "limit",
                                       Optional tif As String = "good_til_cancelled",
                                       Optional postOnly As Boolean? = Nothing,
                                       Optional reduceOnly As Boolean? = Nothing,
                                       Optional label As String = Nothing) As Task(Of JObject)
+            ' amount is REQUIRED:
+            ' - Futures/perpetuals (inverse): USD notional (must be a multiple of 10)
+            ' - Spot: base currency amount (e.g., BTC)
+            If Not amount.HasValue OrElse amount.Value <= 0D Then
+                Throw New ArgumentException("amount is required and must be > 0 for all instruments")
+            End If
+
             Dim req As New JObject From {
     {"instrument_name", instrument},
-    {"type", orderType}
+    {"type", orderType},
+    {"amount", amount.Value}
   }
+
             If Not String.IsNullOrEmpty(side) Then req("side") = side
-            If amount.HasValue Then req("amount") = amount.Value
-            If contracts.HasValue Then req("amount") = contracts.Value
             If Not String.IsNullOrEmpty(tif) Then req("time_in_force") = tif
             If postOnly.HasValue Then req("post_only") = postOnly.Value
             If reduceOnly.HasValue Then req("reduce_only") = reduceOnly.Value
             If Not String.IsNullOrEmpty(label) Then req("label") = label
+
+            ' Only include price for limit orders; never for market_limit
             If orderType.Equals("limit", StringComparison.OrdinalIgnoreCase) AndAlso price.HasValue Then
                 req("price") = price.Value
             End If
+
             Dim method As String = If(side.Equals("buy", StringComparison.OrdinalIgnoreCase), "private/buy", "private/sell")
             Dim res = Await SendAsync(method, req)
             Return res("result")?.Value(Of JObject)()
         End Function
+
 
 
 

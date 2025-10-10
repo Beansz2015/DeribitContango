@@ -276,18 +276,19 @@ Namespace DeribitContango
             Dim sized = RoundUsdToValidContracts(usdN, pxF)
             usdN = sized.usdRounded
             Dim contracts As Integer = sized.contracts
+            Dim amountUsd As Decimal = contracts * 10D
 
             Dim futOrder = Await _api.PlaceOrderAsync(
-              instrument:=FuturesInstrument,
-              side:="sell",
-              contracts:=contracts,
-              price:=pxF,
-              orderType:="limit",
-              tif:="good_til_cancelled",
-              postOnly:=True,
-              reduceOnly:=False,
-              label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
-            )
+  instrument:=FuturesInstrument,
+  side:="sell",
+  amount:=amountUsd,                 ' <-- USD notional for inverse futures
+  price:=pxF,
+  orderType:="limit",
+  tif:="good_til_cancelled",
+  postOnly:=True,
+  reduceOnly:=False,
+  label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
+)
             TrackOrder(futOrder)
 
             Try
@@ -508,16 +509,17 @@ Namespace DeribitContango
                         End Try
 
                         Dim repost = Await _api.PlaceOrderAsync(
-          instrument:=FuturesInstrument,
-          side:="sell",
-          contracts:=_pendingFutContracts,
-          price:=targetPx,
-          orderType:="limit",
-          tif:="good_til_cancelled",
-          postOnly:=True,
-          reduceOnly:=False,
-          label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
-        )
+  instrument:=FuturesInstrument,
+  side:="sell",
+  amount:=_pendingFutContracts * 10,   ' USD notional (10 USD per contract)
+  price:=targetPx,
+  orderType:="limit",
+  tif:="good_til_cancelled",
+  postOnly:=True,
+  reduceOnly:=False,
+  label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
+)
+
                         Dim ro = repost?("order")?.Value(Of JObject)()
                         Dim newId = ro?.Value(Of String)("order_id")
                         If Not String.IsNullOrEmpty(newId) Then _lastFutOrderId = newId
@@ -860,16 +862,17 @@ Namespace DeribitContango
                 Dim pxAsk = RoundToTick(ask, _futTick)
 
                 Dim closeBuy = Await _api.PlaceOrderAsync(
-      instrument:=FuturesInstrument,
-      side:="buy",
-      contracts:=curContracts,
-      price:=pxAsk,
-      orderType:="limit",
-      tif:="good_til_cancelled",
-      postOnly:=True,
-      reduceOnly:=True,
-      label:="ContangoRollClose"
-    )
+  instrument:=FuturesInstrument,
+  side:="buy",
+  amount:=curContracts,              ' <-- USD notional
+  price:=pxAsk,
+  orderType:="limit",
+  tif:="good_til_cancelled",
+  postOnly:=True,
+  reduceOnly:=True,
+  label:="ContangoRollClose"
+)
+
                 TrackOrder(closeBuy)
                 Dim o = closeBuy?("order")?.Value(Of JObject)()
                 _lastCloseOrderId = o?.Value(Of String)("order_id")
@@ -905,17 +908,18 @@ Namespace DeribitContango
                     If ask <= 0D Then ask = _monitor.WeeklyFutureMark
                     Dim pxAsk = RoundToTick(ask, _futTick)
 
+                    ' szShort is USD position size (multiple of 10)
                     Dim closeBuy = Await _api.PlaceOrderAsync(
-        instrument:=FuturesInstrument,
-        side:="buy",
-        contracts:=szShort,
-        price:=pxAsk,
-        orderType:="limit",
-        tif:="good_til_cancelled",
-        postOnly:=True,            ' maker on futures close
-        reduceOnly:=True,
-        label:="ContangoClose_ROL"
-      )
+  instrument:=FuturesInstrument,
+  side:="buy",
+  amount:=szShort,                   ' <-- USD notional
+  price:=pxAsk,
+  orderType:="limit",
+  tif:="good_til_cancelled",
+  postOnly:=True,
+  reduceOnly:=True,
+  label:="ContangoClose_ROL"
+)
                     TrackOrder(closeBuy)
                     Dim o = closeBuy?("order")?.Value(Of JObject)()
                     _lastCloseOrderId = o?.Value(Of String)("order_id")
@@ -999,17 +1003,19 @@ Namespace DeribitContango
                                 Try
                                     ' Prefer cancel+repost for consistent reduce_only+post_only semantics on some venues
                                     Await _api.CancelOrderAsync(_lastCloseOrderId)
+                                    Dim amtUsd = cur?.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+
                                     Dim repost = Await _api.PlaceOrderAsync(
-                instrument:=FuturesInstrument,
-                side:="buy",
-                contracts:=cur?.Value(Of Integer?)("amount").GetValueOrDefault(0),
-                price:=targetPx,
-                orderType:="limit",
-                tif:="good_til_cancelled",
-                postOnly:=True,
-                reduceOnly:=True,
-                label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
-              )
+  instrument:=FuturesInstrument,
+  side:="buy",
+  amount:=amtUsd,                    ' <-- USD notional from current order state
+  price:=targetPx,
+  orderType:="limit",
+  tif:="good_til_cancelled",
+  postOnly:=True,
+  reduceOnly:=True,
+  label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
+)
                                     Dim ro = repost?("order")?.Value(Of JObject)()
                                     Dim newId = ro?.Value(Of String)("order_id")
                                     If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId

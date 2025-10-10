@@ -355,77 +355,61 @@ Namespace DeribitContango
 
 
         ' Futures fills -> buy spot IOC; Spot fills -> persist
-        Private Async Sub OnTradeUpdate(currency As String, payload As JObject)
-            Dim instrument = payload.Value(Of String)("instrument_name")
-            If String.IsNullOrEmpty(instrument) Then Return
-            Dim trades = payload("trades")
-            If trades Is Nothing OrElse trades.Type <> JTokenType.Array OrElse trades.Count = 0 Then Return
-
-            If instrument = FuturesInstrument Then
-                Dim filledContracts As Integer = 0
-                Dim vwap As Decimal = 0D
-                Dim w As Integer = 0
+        ' Normalize and persist trades; maintain live spot hedge balance for Close Monitor
+        Private Sub OnTradeUpdate(currency As String, payload As JObject)
+            Try
+                Dim instr = payload.Value(Of String)("instrument_name")
+                Dim trades = payload("trades")
+                If trades Is Nothing OrElse trades.Type <> JTokenType.Array OrElse trades.Count = 0 Then Return
 
                 For Each t In trades
                     Dim sideStr = t.Value(Of String)("side")
                     If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
-                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                    Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
-                    Dim feeCcy = t.Value(Of String)("fee_currency")
+                    Dim px As Decimal = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
-                    Dim c = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
-                    If c = 0 Then
+                    ' Compute futures contracts if present, else derive from USD amount
+                    Dim contracts = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
+                    If contracts = 0 Then
                         Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
-                        If amtUsd > 0D Then c = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
+                        If amtUsd > 0D Then contracts = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
                     End If
 
-                    _db.SaveTrade(t.Value(Of String)("trade_id"), DateTime.UtcNow, If(String.IsNullOrEmpty(sideStr), "", sideStr), instrument, Nothing, c, px, feeCcy, fee)
+                    Dim amtBtc As Decimal = 0D
+                    Dim isSpot As Boolean = String.Equals(instr, SpotInstrument, StringComparison.OrdinalIgnoreCase)
 
-                    If Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
-                        filledContracts += c
-                        If px > 0D AndAlso c > 0 Then
-                            vwap = (vwap * w + px * c) / Math.Max(1, w + c)
-                            w += c
+                    If isSpot Then
+                        ' For spot, Deribit "amount" is base currency
+                        amtBtc = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                    End If
+
+                    ' Persist trade
+                    _db.SaveTrade(
+        t.Value(Of String)("trade_id"),
+        DateTime.UtcNow,
+        If(String.IsNullOrEmpty(sideStr), "", sideStr),
+        instr,
+        If(isSpot, CType(amtBtc, Decimal?), Nothing),
+        If(Not isSpot AndAlso contracts > 0, CType(contracts, Integer?), Nothing),
+        px,
+        t.Value(Of String)("fee_currency"),
+        t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
+      )
+
+                    ' Maintain live spot hedge so CloseMonitor can unwind after futures is flat
+                    If isSpot AndAlso amtBtc > 0D AndAlso Not String.IsNullOrEmpty(sideStr) Then
+                        If sideStr.Equals("buy", StringComparison.OrdinalIgnoreCase) Then
+                            _openSpotHedgeBtc += amtBtc
+                        ElseIf sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
+                            _openSpotHedgeBtc = Math.Max(0D, _openSpotHedgeBtc - amtBtc)
                         End If
                     End If
                 Next
 
-                If IsFillMonitorActive Then
-                    Exit Sub
-                End If
-
-                If filledContracts > 0 AndAlso vwap > 0D Then
-                    SyncLock _lock
-                        _pendingFutContracts = Math.Max(0, _pendingFutContracts - filledContracts)
-                    End SyncLock
-                    Await PlaceSpotIOCForContractsAsync(filledContracts, vwap)
-
-                    If _pendingFutContracts = 0 Then
-                        StopRequoteLoop()
-                        RaiseEvent Info("All futures contracts filled; re-quote loop stopped.")
-                    End If
-                End If
-
-            ElseIf instrument = SpotInstrument Then
-                For Each t In trades
-                    Dim sideStr = t.Value(Of String)("side")
-                    If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
-                    Dim amt = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
-                    Dim px = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                    Dim fee = t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
-                    Dim feeCcy = t.Value(Of String)("fee_currency")
-                    _db.SaveTrade(t.Value(Of String)("trade_id"), DateTime.UtcNow, If(String.IsNullOrEmpty(sideStr), "", sideStr), instrument, amt, Nothing, px, feeCcy, fee)
-
-                    ' Track live BTC hedge for Close Monitor
-                    If Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("buy", StringComparison.OrdinalIgnoreCase) Then
-                        _openSpotHedgeBtc += amt
-                    ElseIf Not String.IsNullOrEmpty(sideStr) AndAlso sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
-                        _openSpotHedgeBtc = Math.Max(0D, _openSpotHedgeBtc - amt)
-                    End If
-                Next
-            End If
-
+            Catch
+                ' ignore and continue
+            End Try
         End Sub
+
 
         ' ============ Re-quote loop ============
 
@@ -899,45 +883,56 @@ Namespace DeribitContango
 
         Public Async Function CloseAllAsync() As Task
             Try
-                ' 1) Read current futures position size for the selected weekly
-                Dim szShort As Integer = 0
+                ' 1) Read current futures position size for the selected weekly (USD notional for inverse)
+                Dim amtUsdShort As Integer = 0
                 Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
                 For Each p In posArr
                     Dim o = p.Value(Of JObject)()
                     If o.Value(Of String)("instrument_name") = FuturesInstrument Then
-                        Dim sz = o.Value(Of Integer)("size")
-                        If sz < 0 Then szShort = Math.Abs(sz)
+                        Dim sz = o.Value(Of Integer)("size")   ' inverse: negative for short, positive for long, unit ~= USD notional blocks
+                        If sz < 0 Then amtUsdShort = Math.Abs(sz)
                         Exit For
                     End If
                 Next
 
-                ' 2) If short exists, place reduce_only buy LIMIT at best ask (rounded)
-                If szShort > 0 Then
+                ' 2) Place reduce_only buy LIMIT at best ask (rounded) if short exists
+                If amtUsdShort > 0 Then
                     Await RefreshInstrumentSpecsAsync()
                     Dim ask = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
                     If ask <= 0D Then ask = _monitor.WeeklyFutureMark
                     Dim pxAsk = RoundToTick(ask, _futTick)
 
-                    ' szShort is USD position size (multiple of 10)
                     Dim closeBuy = Await _api.PlaceOrderAsync(
-  instrument:=FuturesInstrument,
-  side:="buy",
-  amount:=szShort,                   ' <-- USD notional
-  price:=pxAsk,
-  orderType:="limit",
-  tif:="good_til_cancelled",
-  postOnly:=True,
-  reduceOnly:=True,
-  label:="ContangoClose_ROL"
-)
+        instrument:=FuturesInstrument,
+        side:="buy",
+        amount:=amtUsdShort,                 ' USD notional
+        price:=pxAsk,
+        orderType:="limit",
+        tif:="good_til_cancelled",
+        postOnly:=True,
+        reduceOnly:=True,
+        label:="ContangoClose_ROL"
+      )
                     TrackOrder(closeBuy)
-                    Dim o = closeBuy?("order")?.Value(Of JObject)()
-                    _lastCloseOrderId = o?.Value(Of String)("order_id")
-                    RaiseEvent Info($"CloseAll: futures reduce_only LIMIT sent px={pxAsk:0.00} contracts={szShort} id={_lastCloseOrderId}")
 
-                    ' 3) Chase the ask by 2–3 ticks and start close monitor for spot unwind
+                    ' Log exchange-acknowledged price to match platform
+                    Dim ackPx As Decimal = pxAsk
+                    Dim ackId As String = Nothing
+                    Try
+                        Dim o = closeBuy?("order")?.Value(Of JObject)()
+                        ackId = o?.Value(Of String)("order_id")
+                        Dim pxa = o?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                        If pxa > 0D Then ackPx = pxa
+                    Catch
+                    End Try
+                    _lastCloseOrderId = ackId
+
+                    RaiseEvent Info($"CloseAll: futures reduce_only LIMIT sent px={ackPx:0.00} contracts={amtUsdShort} id={_lastCloseOrderId}")
+
+                    ' 3) Start close re-quote and monitor for spot unwind
                     StartCloseRequoteLoop()
                     StartCloseMonitorLoop()
+
                 Else
                     RaiseEvent Info("CloseAll: no short futures position detected.")
                 End If
@@ -956,6 +951,7 @@ Namespace DeribitContango
             _lastFutOrderId = Nothing
             SetActive(False)
         End Function
+
 
 
 

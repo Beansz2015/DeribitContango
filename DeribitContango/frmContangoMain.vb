@@ -49,6 +49,11 @@ Public Class frmContangoMain
 
     ' 2) Add this handler in frmContangoMain:
     Private Sub OnPmActiveChanged(active As Boolean)
+        If InvokeRequired Then
+            BeginInvoke(Sub() OnPmActiveChanged(active))
+            Return
+        End If
+
         ' Disable/enable actionable entry controls during an active position
         btnEnter.Enabled = Not active
         txtAmount.Enabled = Not active
@@ -58,10 +63,12 @@ Public Class frmContangoMain
         numSlippageBps.Enabled = Not active
         numRequoteTicks.Enabled = Not active
         numRequoteMs.Enabled = Not active
+
         ' Optional visual cue
         btnEnter.BackColor = If(active, Color.LightGray, Color.LightSkyBlue)
         AppendLog(If(active, "Entry disabled: position cycle active.", "Entry enabled: no active position."))
     End Sub
+
 
 
     Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged

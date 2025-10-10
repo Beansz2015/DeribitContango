@@ -775,6 +775,10 @@ Namespace DeribitContango
     label:="ContangoSpotML_Enter"
   )
             TrackOrder(spotOrder)
+
+            ' NEW: proactively accrue live hedge so CloseMonitor can unwind even if TradeUpdate lags
+            _openSpotHedgeBtc += amt
+
             RaiseEvent Info($"Spot market_limit hedge placed amt={amt:0.########} (no residual mode)")
         End Function
 
@@ -979,7 +983,7 @@ Namespace DeribitContango
                 Try
                     If String.IsNullOrEmpty(_lastCloseOrderId) Then Exit While
 
-                    ' If the order is terminal, stop
+                    ' Pull current order state
                     Dim cur = Await _api.GetOrderStateAsync(_lastCloseOrderId)
                     If cur Is Nothing Then
                         doDelay = True
@@ -990,7 +994,7 @@ Namespace DeribitContango
                             Exit While
                         End If
 
-                        ' Compute target ask tick
+                        ' Compute current target ask
                         Dim bestAsk = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
                         If bestAsk <= 0D Then
                             doDelay = True
@@ -998,48 +1002,73 @@ Namespace DeribitContango
                             Dim targetPx = RoundToTick(bestAsk, _futTick)
                             Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
-                            ' Tick delta; chase by 2–3 ticks to limit churn
+                            ' Tick delta vs current resting
                             Dim tickSteps As Integer = 0
                             If _futTick > 0D AndAlso curPx > 0D Then
                                 tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
                             End If
 
-                            ' If Math.Abs(tickSteps) >= _requoteMinTicksBacking AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
-                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= 3 Then
-
+                            ' Use public min guard and a local cap for max ticks
+                            Dim maxTicks As Integer = 3
+                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= maxTicks Then
                                 Dim edited As Boolean = False
-                                Try
-                                    ' Prefer cancel+repost for consistent reduce_only+post_only semantics on some venues
-                                    Await _api.CancelOrderAsync(_lastCloseOrderId)
-                                    Dim amtUsd = cur?.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
 
-                                    Dim repost = Await _api.PlaceOrderAsync(
-  instrument:=FuturesInstrument,
-  side:="buy",
-  amount:=amtUsd,                    ' <-- USD notional from current order state
-  price:=targetPx,
-  orderType:="limit",
-  tif:="good_til_cancelled",
-  postOnly:=True,
-  reduceOnly:=True,
-  label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
-)
-                                    Dim ro = repost?("order")?.Value(Of JObject)()
-                                    Dim newId = ro?.Value(Of String)("order_id")
-                                    If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId
+                                ' 1) Try in-place edit first (preserve queue)
+                                Try
+                                    Dim editRes = Await _api.EditOrderAsync(_lastCloseOrderId, targetPx, Nothing, True)
                                     edited = True
-                                    RaiseEvent Info($"Close re-quote: price -> {targetPx:0.00}, id={_lastCloseOrderId}")
+
+                                    ' Log exchange-acknowledged price
+                                    Dim eordPx As Decimal = targetPx
+                                    Try
+                                        Dim eord = editRes?("order")?.Value(Of JObject)()
+                                        Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                        If pxAck > 0D Then eordPx = pxAck
+                                    Catch
+                                    End Try
+                                    RaiseEvent Info($"Close re-quote (edit): price -> {eordPx:0.00}")
                                 Catch
                                     edited = False
                                 End Try
 
+                                ' 2) If edit failed, cancel + repost
                                 If Not edited Then
-                                    ' If edit/repost failed, just pace and retry
-                                    doDelay = True
+                                    Try
+                                        Await _api.CancelOrderAsync(_lastCloseOrderId)
+
+                                        ' Amount: USD notional from current order state; safe unwrap
+                                        Dim amtUsdVal As Decimal = cur?.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                                        Dim amtUsd As Integer = CInt(Math.Round(amtUsdVal, MidpointRounding.AwayFromZero))
+
+                                        Dim repost = Await _api.PlaceOrderAsync(
+                  instrument:=FuturesInstrument,
+                  side:="buy",
+                  amount:=amtUsd,           ' USD notional
+                  price:=targetPx,
+                  orderType:="limit",
+                  tif:="good_til_cancelled",
+                  postOnly:=True,
+                  reduceOnly:=True,
+                  label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
+                )
+                                        Dim ro = repost?("order")?.Value(Of JObject)()
+                                        Dim newId = ro?.Value(Of String)("order_id")
+                                        If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId
+
+                                        ' Log exchange-acknowledged price from repost
+                                        Dim roPx As Decimal = targetPx
+                                        Try
+                                            Dim pxAck = ro?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                            If pxAck > 0D Then roPx = pxAck
+                                        Catch
+                                        End Try
+                                        RaiseEvent Info($"Close re-quote (repost): price -> {roPx:0.00}, id={_lastCloseOrderId}")
+                                    Catch
+                                        ' ignore; pace and retry
+                                    End Try
                                 End If
 
                             Else
-                                ' No meaningful improvement; pace
                                 doDelay = True
                             End If
                         End If
@@ -1060,6 +1089,8 @@ Namespace DeribitContango
                 End If
             End While
         End Function
+
+
 
 
 

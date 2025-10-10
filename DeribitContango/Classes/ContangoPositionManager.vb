@@ -883,6 +883,7 @@ Namespace DeribitContango
         End Function
 
 
+
         Public Async Function CloseAllAsync() As Task
             Try
                 ' 1) Read current futures position size for the selected weekly
@@ -941,6 +942,7 @@ Namespace DeribitContango
             _lastFutOrderId = Nothing
             SetActive(False)
         End Function
+
 
 
 

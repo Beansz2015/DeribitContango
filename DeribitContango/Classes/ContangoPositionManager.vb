@@ -66,6 +66,10 @@ Namespace DeribitContango
         ' Re-quote cancel+repost guard
         Private _cancelRepostInFlight As Boolean = False
 
+        ' Cancel+repost grace window to ignore transient "cancelled" states
+        Private _repostGuardUntilUtc As DateTime = Date.MinValue
+
+
         ' Is the fill monitor running now?
         Private ReadOnly Property IsFillMonitorActive As Boolean
             Get
@@ -330,9 +334,9 @@ Namespace DeribitContango
 
             ' Entry-side futures lifecycle
             If orderId = _lastFutOrderId Then
-                ' Ignore cancel/reject while we are intentionally cancel+reposting
-                If (state = "cancelled" OrElse state = "rejected") AndAlso _cancelRepostInFlight Then
-                    RaiseEvent Info($"Futures order {orderId} {state} (repost in flight); keeping position active.")
+                Dim guardActive As Boolean = _cancelRepostInFlight OrElse (DateTime.UtcNow <= _repostGuardUntilUtc)
+                If (state = "cancelled" OrElse state = "rejected") AndAlso guardActive Then
+                    RaiseEvent Info($"Futures order {orderId} {state} (repost guard); keeping position active.")
                     Return
                 End If
 
@@ -348,6 +352,7 @@ Namespace DeribitContango
                     RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
                 End If
             End If
+
 
 
             ' Close-side futures lifecycle
@@ -366,8 +371,7 @@ Namespace DeribitContango
 
 
 
-        ' Futures fills -> buy spot IOC; Spot fills -> persist
-        ' Normalize and persist trades; maintain live spot hedge balance for Close Monitor
+        ' Futures and spot private trades; hedge futures slices immediately to spot
         Private Sub OnTradeUpdate(currency As String, payload As JObject)
             Try
                 Dim instr = payload.Value(Of String)("instrument_name")
@@ -375,74 +379,53 @@ Namespace DeribitContango
                 If trades Is Nothing OrElse trades.Type <> JTokenType.Array OrElse trades.Count = 0 Then Return
 
                 For Each t In trades
-                    Dim sideStr = t.Value(Of String)("side")
-                    If String.IsNullOrEmpty(sideStr) Then sideStr = t.Value(Of String)("direction")
+                    Dim dir = t.Value(Of String)("side")
+                    If String.IsNullOrEmpty(dir) Then dir = t.Value(Of String)("direction")
                     Dim px As Decimal = t.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
-                    ' Compute futures contracts if present, else derive from USD amount
                     Dim contracts = t.Value(Of Integer?)("contracts").GetValueOrDefault(0)
                     If contracts = 0 Then
                         Dim amtUsd = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
                         If amtUsd > 0D Then contracts = CInt(Math.Round(amtUsd / 10D, MidpointRounding.AwayFromZero))
                     End If
 
-                    Dim amtBtc As Decimal = 0D
-                    Dim isSpot As Boolean = String.Equals(instr, SpotInstrument, StringComparison.OrdinalIgnoreCase)
-                    Dim isFutures As Boolean = String.Equals(instr, FuturesInstrument, StringComparison.OrdinalIgnoreCase)
+                    Dim isFut = String.Equals(instr, FuturesInstrument, StringComparison.OrdinalIgnoreCase)
+                    Dim isSpot = String.Equals(instr, SpotInstrument, StringComparison.OrdinalIgnoreCase)
 
-                    If isSpot Then
-                        ' For spot, Deribit "amount" is base currency
-                        amtBtc = t.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
-                    End If
-
-                    ' Persist trade
+                    ' Persist
                     _db.SaveTrade(
         t.Value(Of String)("trade_id"),
         DateTime.UtcNow,
-        If(String.IsNullOrEmpty(sideStr), "", sideStr),
+        If(String.IsNullOrEmpty(dir), "", dir),
         instr,
-        If(isSpot, CType(amtBtc, Decimal?), Nothing),
-        If(isFutures AndAlso contracts > 0, CType(contracts, Integer?), Nothing),
+        If(isSpot, CType(t.Value(Of Decimal?)("amount").GetValueOrDefault(0D), Decimal?), Nothing),
+        If(isFut AndAlso contracts > 0, CType(contracts, Integer?), Nothing),
         px,
         t.Value(Of String)("fee_currency"),
         t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
       )
 
-                    ' NEW: futures-trade hedge slice when this trade belongs to active entry
-                    If isFutures AndAlso contracts > 0 AndAlso px > 0D Then
+                    ' Futures fill -> place spot hedge slice
+                    If isFut AndAlso contracts > 0 AndAlso px > 0D Then
                         Dim shouldHedge As Boolean = False
                         SyncLock _lock
                             shouldHedge = (Not String.IsNullOrEmpty(_lastFutOrderId)) AndAlso (_pendingFutContracts > 0)
+                            If shouldHedge Then _pendingFutContracts = Math.Max(0, _pendingFutContracts - contracts)
                         End SyncLock
                         If shouldHedge Then
-                            ' Place spot hedge for the newly observed contracts at the trade price
-                            ' Fire-and-forget on thread pool to avoid blocking event thread
                             Task.Run(Async Function()
                                          Try
-                                             SyncLock _lock
-                                                 _pendingFutContracts = Math.Max(0, _pendingFutContracts - contracts)
-                                             End SyncLock
                                              Await PlaceSpotIOCForContractsAsync(contracts, px)
                                          Catch
                                          End Try
                                      End Function)
                         End If
                     End If
-
-                    ' Maintain live spot hedge so CloseMonitor can unwind after futures is flat
-                    If isSpot AndAlso amtBtc > 0D AndAlso Not String.IsNullOrEmpty(sideStr) Then
-                        If sideStr.Equals("buy", StringComparison.OrdinalIgnoreCase) Then
-                            _openSpotHedgeBtc += amtBtc
-                        ElseIf sideStr.Equals("sell", StringComparison.OrdinalIgnoreCase) Then
-                            _openSpotHedgeBtc = Math.Max(0D, _openSpotHedgeBtc - amtBtc)
-                        End If
-                    End If
                 Next
-
             Catch
-                ' ignore and continue
             End Try
         End Sub
+
 
 
 
@@ -520,10 +503,10 @@ Namespace DeribitContango
                                 If Not edited Then
                                     Try
                                         _cancelRepostInFlight = True
+                                        _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(3)  ' grace for order-state watchers
 
                                         Await _api.CancelOrderAsync(_lastFutOrderId)
 
-                                        ' Use USD notional for futures amount (remainder)
                                         Dim amtUsd As Integer
                                         SyncLock _lock
                                             amtUsd = Math.Max(1, _pendingFutContracts) * 10
@@ -541,7 +524,6 @@ Namespace DeribitContango
                                           label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
                                         )
 
-                                        ' Track and swap to the new id before clearing the guard
                                         TrackOrder(repost)
                                         Dim ro = repost?("order")?.Value(Of JObject)()
                                         Dim newId = ro?.Value(Of String)("order_id")
@@ -559,8 +541,10 @@ Namespace DeribitContango
                                         ' ignore; pace and retry
                                     Finally
                                         _cancelRepostInFlight = False
+                                        ' leave _repostGuardUntilUtc in the future for the grace window
                                     End Try
                                 End If
+
 
 
                             Else
@@ -759,9 +743,9 @@ Namespace DeribitContango
 
                         ' 5) Stop conditions on terminal order state
                         If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
-                            ' If we cancelled only to repost, do NOT release
-                            If ordState = "cancelled" AndAlso _cancelRepostInFlight Then
-                                doDelay = True
+                            Dim guardActive As Boolean = _cancelRepostInFlight OrElse (DateTime.UtcNow <= _repostGuardUntilUtc)
+                            If ordState = "cancelled" AndAlso guardActive Then
+                                doDelay = True   ' transient cancel during repost; keep monitoring
                             Else
                                 If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
        OrElse ordState = "cancelled" _
@@ -773,6 +757,7 @@ Namespace DeribitContango
                                 Exit While
                             End If
                         End If
+
 
 
 
@@ -849,40 +834,47 @@ Namespace DeribitContango
         End Function
 
         Private Async Function HedgeFallbackAsync() As Task
-            Dim cancelNow As Boolean = False
-            Dim oid As String = Nothing
-            Dim basisNow As Decimal = _monitor.BasisMid
+            Try
+                Dim nowUtc = DateTime.UtcNow
 
-            SyncLock _lock
-                If _pendingFutContracts > 0 AndAlso _hedgeWatchTsUtc <> Date.MinValue Then
-                    Dim elapsed = (DateTime.UtcNow - _hedgeWatchTsUtc).TotalSeconds
-                    If elapsed >= _hedgeTimeoutSeconds OrElse basisNow < Math.Max(0D, EntryThreshold - 0.0005D) Then
-                        cancelNow = True
-                        oid = _lastFutOrderId
-                        _hedgeWatchTsUtc = Date.MinValue
-                    End If
+                ' 1) Skip watchdog cancel if a cancel+repost was just executed
+                Dim guardActive As Boolean = (nowUtc <= _repostGuardUntilUtc)
+                If guardActive Then
+                    RaiseEvent Info("Watchdog: skip cancel due to recent re-quote repost (cooldown active).")
+                    ' Optionally extend monitoring window instead of exiting
+                    ' Small sleep to avoid tight loop
+                    Await Task.Delay(1000)
+                    Return
                 End If
-            End SyncLock
 
-            If cancelNow AndAlso Not String.IsNullOrEmpty(oid) Then
-                Try
-                    Await _api.CancelOrderAsync(oid)
-                    RaiseEvent Info($"Watchdog: cancelled resting futures order id={oid}")
-                    StopFillMonitorLoop()
-                    StopCloseMonitorLoop()
+                ' 2) Only proceed if an entry order is actually live
+                If String.IsNullOrEmpty(_lastFutOrderId) Then
+                    RaiseEvent Info("Watchdog: no active futures order id; nothing to cancel.")
+                    Return
+                End If
 
-                Catch
-                End Try
+                ' 3) Cancel resting futures order and release state
+                Await _api.CancelOrderAsync(_lastFutOrderId)
+                RaiseEvent Info($"Watchdog: cancelled resting futures order id={_lastFutOrderId}")
+
+                ' Optional: set a short guard to prevent an immediate re-trigger race
+                _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(1)
+
+                ' 4) Cleanup entry cycle
                 StopRequoteLoop()
+                StopFillMonitorLoop()
                 SyncLock _lock
                     _pendingFutContracts = 0
                     _hedgeWatchTsUtc = Date.MinValue
                 End SyncLock
                 _lastFutOrderId = Nothing
                 SetActive(False)
-            End If
 
+            Catch ex As Exception
+                RaiseEvent Info("Watchdog error: " & ex.Message)
+            End Try
         End Function
+
 
         ' ============ Admin ops ============
 

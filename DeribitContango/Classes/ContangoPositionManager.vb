@@ -63,6 +63,8 @@ Namespace DeribitContango
         Private _closeRequoteCts As CancellationTokenSource = Nothing
         Private _lastCloseOrderId As String = Nothing
 
+        ' Re-quote cancel+repost guard
+        Private _cancelRepostInFlight As Boolean = False
 
         ' Is the fill monitor running now?
         Private ReadOnly Property IsFillMonitorActive As Boolean
@@ -328,7 +330,12 @@ Namespace DeribitContango
 
             ' Entry-side futures lifecycle
             If orderId = _lastFutOrderId Then
-                ' Do NOT stop FillMonitor on "filled"; allow it to compute the final slice and submit spot
+                ' Ignore cancel/reject while we are intentionally cancel+reposting
+                If (state = "cancelled" OrElse state = "rejected") AndAlso _cancelRepostInFlight Then
+                    RaiseEvent Info($"Futures order {orderId} {state} (repost in flight); keeping position active.")
+                    Return
+                End If
+
                 If state = "cancelled" OrElse state = "rejected" Then
                     StopRequoteLoop()
                     StopFillMonitorLoop()
@@ -340,9 +347,8 @@ Namespace DeribitContango
                     SetActive(False)
                     RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
                 End If
-                ' For "filled", FillMonitorLoopAsync will detect terminal state, post residual spot if any,
-                ' stop re-quote defensively, clear _lastFutOrderId and flip IsActive off.
             End If
+
 
             ' Close-side futures lifecycle
             If orderId = _lastCloseOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
@@ -510,28 +516,33 @@ Namespace DeribitContango
                                     edited = False
                                 End Try
 
-                                ' If edit failed (crossing risk or edit not allowed), cancel+repost
+                                ' 2) If edit failed (crossing risk or edit not allowed), cancel + repost
                                 If Not edited Then
                                     Try
+                                        _cancelRepostInFlight = True
+
                                         Await _api.CancelOrderAsync(_lastFutOrderId)
 
-                                        ' Use USD notional for futures amount
+                                        ' Use USD notional for futures amount (remainder)
                                         Dim amtUsd As Integer
                                         SyncLock _lock
                                             amtUsd = Math.Max(1, _pendingFutContracts) * 10
                                         End SyncLock
 
                                         Dim repost = Await _api.PlaceOrderAsync(
-                  instrument:=FuturesInstrument,
-                  side:="sell",
-                  amount:=amtUsd,           ' USD notional
-                  price:=targetPx,
-                  orderType:="limit",
-                  tif:="good_til_cancelled",
-                  postOnly:=True,
-                  reduceOnly:=False,
-                  label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
-                )
+                                          instrument:=FuturesInstrument,
+                                          side:="sell",
+                                          amount:=amtUsd,
+                                          price:=targetPx,
+                                          orderType:="limit",
+                                          tif:="good_til_cancelled",
+                                          postOnly:=True,
+                                          reduceOnly:=False,
+                                          label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
+                                        )
+
+                                        ' Track and swap to the new id before clearing the guard
+                                        TrackOrder(repost)
                                         Dim ro = repost?("order")?.Value(Of JObject)()
                                         Dim newId = ro?.Value(Of String)("order_id")
                                         If Not String.IsNullOrEmpty(newId) Then _lastFutOrderId = newId
@@ -546,8 +557,11 @@ Namespace DeribitContango
                                         RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
                                     Catch
                                         ' ignore; pace and retry
+                                    Finally
+                                        _cancelRepostInFlight = False
                                     End Try
                                 End If
+
 
                             Else
                                 doDelay = True
@@ -745,18 +759,21 @@ Namespace DeribitContango
 
                         ' 5) Stop conditions on terminal order state
                         If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
-                            ' Terminal guard: if fully filled (no pending), or cancelled/rejected,
-                            ' release the UI immediately even if private order update is delayed.
-                            If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
-     OrElse ordState = "cancelled" _
-     OrElse ordState = "rejected" Then
-                                _lastFutOrderId = Nothing
-                                SetActive(False)
-                                ' Defensive: ensure re-quote is not left running (usually already stopped)
-                                StopRequoteLoop()
+                            ' If we cancelled only to repost, do NOT release
+                            If ordState = "cancelled" AndAlso _cancelRepostInFlight Then
+                                doDelay = True
+                            Else
+                                If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
+       OrElse ordState = "cancelled" _
+       OrElse ordState = "rejected" Then
+                                    _lastFutOrderId = Nothing
+                                    SetActive(False)
+                                    StopRequoteLoop()
+                                End If
+                                Exit While
                             End If
-                            Exit While
                         End If
+
 
 
                         doDelay = True

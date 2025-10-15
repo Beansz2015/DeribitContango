@@ -31,6 +31,8 @@ Partial Class frmContangoMain
         txtClientId = New TextBox()
         Label1 = New Label()
         grpMarket = New GroupBox()
+        lblMedianBasis = New Label()
+        Label11 = New Label()
         lblAnnual = New Label()
         Label16 = New Label()
         lblBasis = New Label()
@@ -57,6 +59,10 @@ Partial Class frmContangoMain
         Label18 = New Label()
         Label17 = New Label()
         grpEntry = New GroupBox()
+        numBasisSampleMs = New NumericUpDown()
+        Label7 = New Label()
+        numBasisWindowMs = New NumericUpDown()
+        Label6 = New Label()
         lblMinUSD = New Label()
         numRequoteMs = New NumericUpDown()
         LabelRQMs = New Label()
@@ -80,6 +86,8 @@ Partial Class frmContangoMain
         grpMarket.SuspendLayout()
         grpTime.SuspendLayout()
         grpEntry.SuspendLayout()
+        CType(numBasisSampleMs, ComponentModel.ISupportInitialize).BeginInit()
+        CType(numBasisWindowMs, ComponentModel.ISupportInitialize).BeginInit()
         CType(numRequoteMs, ComponentModel.ISupportInitialize).BeginInit()
         CType(numRequoteTicks, ComponentModel.ISupportInitialize).BeginInit()
         CType(numSlippageBps, ComponentModel.ISupportInitialize).BeginInit()
@@ -179,6 +187,8 @@ Partial Class frmContangoMain
         ' grpMarket
         ' 
         grpMarket.BackColor = Color.LemonChiffon
+        grpMarket.Controls.Add(lblMedianBasis)
+        grpMarket.Controls.Add(Label11)
         grpMarket.Controls.Add(lblAnnual)
         grpMarket.Controls.Add(Label16)
         grpMarket.Controls.Add(lblBasis)
@@ -204,6 +214,26 @@ Partial Class frmContangoMain
         grpMarket.TabIndex = 1
         grpMarket.TabStop = False
         grpMarket.Text = "Market"
+        ' 
+        ' lblMedianBasis
+        ' 
+        lblMedianBasis.AutoSize = True
+        lblMedianBasis.Location = New Point(899, 38)
+        lblMedianBasis.Margin = New Padding(4, 0, 4, 0)
+        lblMedianBasis.Name = "lblMedianBasis"
+        lblMedianBasis.Size = New Size(61, 25)
+        lblMedianBasis.TabIndex = 17
+        lblMedianBasis.Text = "0.00%"
+        ' 
+        ' Label11
+        ' 
+        Label11.AutoSize = True
+        Label11.Location = New Point(766, 38)
+        Label11.Margin = New Padding(4, 0, 4, 0)
+        Label11.Name = "Label11"
+        Label11.Size = New Size(119, 25)
+        Label11.TabIndex = 16
+        Label11.Text = "Median Basis:"
         ' 
         ' lblAnnual
         ' 
@@ -469,6 +499,10 @@ Partial Class frmContangoMain
         ' grpEntry
         ' 
         grpEntry.BackColor = Color.Lavender
+        grpEntry.Controls.Add(numBasisSampleMs)
+        grpEntry.Controls.Add(Label7)
+        grpEntry.Controls.Add(numBasisWindowMs)
+        grpEntry.Controls.Add(Label6)
         grpEntry.Controls.Add(lblMinUSD)
         grpEntry.Controls.Add(numRequoteMs)
         grpEntry.Controls.Add(LabelRQMs)
@@ -495,6 +529,50 @@ Partial Class frmContangoMain
         grpEntry.TabIndex = 3
         grpEntry.TabStop = False
         grpEntry.Text = "Entry / Risk"
+        ' 
+        ' numBasisSampleMs
+        ' 
+        numBasisSampleMs.Increment = New Decimal(New Integer() {10, 0, 0, 0})
+        numBasisSampleMs.Location = New Point(484, 75)
+        numBasisSampleMs.Margin = New Padding(4, 5, 4, 5)
+        numBasisSampleMs.Maximum = New Decimal(New Integer() {500, 0, 0, 0})
+        numBasisSampleMs.Minimum = New Decimal(New Integer() {20, 0, 0, 0})
+        numBasisSampleMs.Name = "numBasisSampleMs"
+        numBasisSampleMs.Size = New Size(97, 31)
+        numBasisSampleMs.TabIndex = 20
+        numBasisSampleMs.Value = New Decimal(New Integer() {500, 0, 0, 0})
+        ' 
+        ' Label7
+        ' 
+        Label7.AutoSize = True
+        Label7.Location = New Point(360, 78)
+        Label7.Margin = New Padding(4, 0, 4, 0)
+        Label7.Name = "Label7"
+        Label7.Size = New Size(115, 25)
+        Label7.TabIndex = 19
+        Label7.Text = "Basis Sample"
+        ' 
+        ' numBasisWindowMs
+        ' 
+        numBasisWindowMs.Increment = New Decimal(New Integer() {100, 0, 0, 0})
+        numBasisWindowMs.Location = New Point(484, 37)
+        numBasisWindowMs.Margin = New Padding(4, 5, 4, 5)
+        numBasisWindowMs.Maximum = New Decimal(New Integer() {10000, 0, 0, 0})
+        numBasisWindowMs.Minimum = New Decimal(New Integer() {200, 0, 0, 0})
+        numBasisWindowMs.Name = "numBasisWindowMs"
+        numBasisWindowMs.Size = New Size(97, 31)
+        numBasisWindowMs.TabIndex = 18
+        numBasisWindowMs.Value = New Decimal(New Integer() {3000, 0, 0, 0})
+        ' 
+        ' Label6
+        ' 
+        Label6.AutoSize = True
+        Label6.Location = New Point(359, 40)
+        Label6.Margin = New Padding(4, 0, 4, 0)
+        Label6.Name = "Label6"
+        Label6.Size = New Size(122, 25)
+        Label6.TabIndex = 17
+        Label6.Text = "Basis Window"
         ' 
         ' lblMinUSD
         ' 
@@ -531,7 +609,7 @@ Partial Class frmContangoMain
         ' 
         ' numRequoteTicks
         ' 
-        numRequoteTicks.Location = New Point(774, 150)
+        numRequoteTicks.Location = New Point(762, 116)
         numRequoteTicks.Margin = New Padding(4, 5, 4, 5)
         numRequoteTicks.Maximum = New Decimal(New Integer() {10, 0, 0, 0})
         numRequoteTicks.Minimum = New Decimal(New Integer() {1, 0, 0, 0})
@@ -543,7 +621,7 @@ Partial Class frmContangoMain
         ' LabelRQTicks
         ' 
         LabelRQTicks.AutoSize = True
-        LabelRQTicks.Location = New Point(621, 153)
+        LabelRQTicks.Location = New Point(599, 119)
         LabelRQTicks.Margin = New Padding(4, 0, 4, 0)
         LabelRQTicks.Name = "LabelRQTicks"
         LabelRQTicks.Size = New Size(160, 25)
@@ -552,7 +630,7 @@ Partial Class frmContangoMain
         ' 
         ' numSlippageBps
         ' 
-        numSlippageBps.Location = New Point(774, 103)
+        numSlippageBps.Location = New Point(762, 76)
         numSlippageBps.Margin = New Padding(4, 5, 4, 5)
         numSlippageBps.Maximum = New Decimal(New Integer() {1000, 0, 0, 0})
         numSlippageBps.Name = "numSlippageBps"
@@ -563,7 +641,7 @@ Partial Class frmContangoMain
         ' Label23
         ' 
         Label23.AutoSize = True
-        Label23.Location = New Point(634, 107)
+        Label23.Location = New Point(605, 80)
         Label23.Margin = New Padding(4, 0, 4, 0)
         Label23.Name = "Label23"
         Label23.Size = New Size(154, 25)
@@ -574,7 +652,7 @@ Partial Class frmContangoMain
         ' 
         numThreshold.DecimalPlaces = 4
         numThreshold.Increment = New Decimal(New Integer() {1, 0, 0, 262144})
-        numThreshold.Location = New Point(774, 47)
+        numThreshold.Location = New Point(762, 37)
         numThreshold.Margin = New Padding(4, 5, 4, 5)
         numThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
         numThreshold.Name = "numThreshold"
@@ -585,7 +663,7 @@ Partial Class frmContangoMain
         ' Label22
         ' 
         Label22.AutoSize = True
-        Label22.Location = New Point(646, 50)
+        Label22.Location = New Point(624, 40)
         Label22.Margin = New Padding(4, 0, 4, 0)
         Label22.Name = "Label22"
         Label22.Size = New Size(135, 25)
@@ -617,10 +695,10 @@ Partial Class frmContangoMain
         ' btnEnter
         ' 
         btnEnter.BackColor = Color.LightSkyBlue
-        btnEnter.Location = New Point(500, 45)
+        btnEnter.Location = New Point(360, 118)
         btnEnter.Margin = New Padding(4, 5, 4, 5)
         btnEnter.Name = "btnEnter"
-        btnEnter.Size = New Size(121, 97)
+        btnEnter.Size = New Size(221, 88)
         btnEnter.TabIndex = 5
         btnEnter.Text = "Enter Basis"
         btnEnter.UseVisualStyleBackColor = False
@@ -630,7 +708,7 @@ Partial Class frmContangoMain
         txtAmount.Location = New Point(144, 103)
         txtAmount.Margin = New Padding(4, 5, 4, 5)
         txtAmount.Name = "txtAmount"
-        txtAmount.Size = New Size(324, 31)
+        txtAmount.Size = New Size(183, 31)
         txtAmount.TabIndex = 4
         txtAmount.Text = "1000"
         ' 
@@ -716,7 +794,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.8c"
+        Text = "Deribit Contango Basis Trader - V1.8d"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -725,6 +803,8 @@ Partial Class frmContangoMain
         grpTime.PerformLayout()
         grpEntry.ResumeLayout(False)
         grpEntry.PerformLayout()
+        CType(numBasisSampleMs, ComponentModel.ISupportInitialize).EndInit()
+        CType(numBasisWindowMs, ComponentModel.ISupportInitialize).EndInit()
         CType(numRequoteMs, ComponentModel.ISupportInitialize).EndInit()
         CType(numRequoteTicks, ComponentModel.ISupportInitialize).EndInit()
         CType(numSlippageBps, ComponentModel.ISupportInitialize).EndInit()
@@ -788,4 +868,10 @@ Partial Class frmContangoMain
     Friend WithEvents numRequoteMs As NumericUpDown
     Friend WithEvents LabelRQMs As Label
     Friend WithEvents lblMinUSD As Label
+    Friend WithEvents numBasisWindowMs As NumericUpDown
+    Friend WithEvents Label6 As Label
+    Friend WithEvents numBasisSampleMs As NumericUpDown
+    Friend WithEvents Label7 As Label
+    Friend WithEvents lblMedianBasis As Label
+    Friend WithEvents Label11 As Label
 End Class

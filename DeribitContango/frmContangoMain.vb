@@ -16,6 +16,12 @@ Public Class frmContangoMain
     Private _entryWatchRunning As Boolean = False
     Private _entryWatchAttempted As Boolean = False
 
+    ' Rolling median basis buffer (percent units like lblBasis)
+    Private ReadOnly _basisBuf As New Queue(Of Decimal)()
+    Private _basisWindowMs As Integer = 3000   ' window length, e.g., last 3 seconds
+    Private _basisSampleMs As Integer = 100    ' sample cadence from UI tick / watcher
+
+
     Private Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             _db = New DeribitContango.ContangoDatabase("contango.db3")
@@ -48,6 +54,18 @@ Public Class frmContangoMain
             numThreshold.Value = CDec(_pm.EntryThreshold * 100D)
 
             numSlippageBps.Value = CDec(_pm.MaxSlippageBps)
+
+            ' Rolling median UI defaults and clamps
+            numBasisWindowMs.Minimum = 200
+            numBasisWindowMs.Maximum = 20000
+            numBasisWindowMs.Increment = 100
+            numBasisWindowMs.Value = _basisWindowMs
+
+            numBasisSampleMs.Minimum = 20
+            numBasisSampleMs.Maximum = 500
+            numBasisSampleMs.Increment = 10
+            numBasisSampleMs.Value = _basisSampleMs
+
 
             AppendLog("Initialized UI and core components.")
         Catch ex As Exception
@@ -90,6 +108,16 @@ Public Class frmContangoMain
         _pm.RequoteMinTicks = CInt(numRequoteTicks.Value)
     End Sub
 
+
+    Private Sub numBasisWindowMs_ValueChanged(sender As Object, e As EventArgs) Handles numBasisWindowMs.ValueChanged
+        _basisWindowMs = Math.Max(100, Math.Min(20000, CInt(numBasisWindowMs.Value)))
+        AppendLog($"Basis window set to {_basisWindowMs} ms (rolling median).")
+    End Sub
+
+    Private Sub numBasisSampleMs_ValueChanged(sender As Object, e As EventArgs) Handles numBasisSampleMs.ValueChanged
+        _basisSampleMs = Math.Max(20, Math.Min(500, CInt(numBasisSampleMs.Value)))
+        AppendLog($"Basis sample cadence set to {_basisSampleMs} ms.")
+    End Sub
 
 
     Private Async Sub btnConnect_Click(sender As Object, e As EventArgs) Handles btnConnect.Click
@@ -377,6 +405,14 @@ Public Class frmContangoMain
                   _pm.ExpiryUtc
                 )
             End If
+
+            ' Keep the median label live:
+            Dim samplePct As Decimal = _mon.BasisMid * 100D
+            _basisBuf.Enqueue(samplePct)
+            Dim medPct As Decimal = RollingMedianBasisPct()
+
+            lblMedianBasis.Text = $"{medPct:0.00}%"
+
         Catch
         End Try
     End Sub
@@ -511,21 +547,33 @@ Public Class frmContangoMain
     End Sub
 
     Private Async Function EntryWatchLoopAsync(ct As Threading.CancellationToken) As Task
-        ' Compare percent values: lblBasis ~ BasisMid*100 vs numThreshold.Value
         Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+        Dim cadence As Integer = Math.Max(50, _basisSampleMs)
+
         While Not ct.IsCancellationRequested
             Try
-                ' Early exit if position got activated elsewhere
                 If _pm.IsActive Then
                     StopEntryWatch("position became active.")
                     Exit While
                 End If
 
-                Dim basisPct As Decimal = _mon.BasisMid * 100D
-                If basisPct >= thresholdPct Then
+                ' Sample basis as percent and enqueue
+                Dim samplePct As Decimal = _mon.BasisMid * 100D
+                _basisBuf.Enqueue(samplePct)
+
+                ' Compute rolling median over window
+                Dim medPct As Decimal = RollingMedianBasisPct()
+
+                ' NEW: show median in the label
+                If InvokeRequired Then
+                    BeginInvoke(Sub() lblMedianBasis.Text = $"{medPct:0.00}%")
+                Else
+                    lblMedianBasis.Text = $"{medPct:0.00}%"
+                End If
+
+                If medPct >= thresholdPct Then
                     _entryWatchAttempted = True
-                    AppendLog($"Entry condition met: basis={basisPct:0.00}% >= {thresholdPct:0.00}%. Attempting entry...")
-                    ' Perform the actual entry on UI thread to reuse validations/log order
+                    AppendLog($"Entry condition met: median basis={medPct:0.00}% >= {thresholdPct:0.00}%. Attempting entry...")
                     If InvokeRequired Then
                         BeginInvoke(Async Sub() Await ExecuteEnterNowAsync())
                     Else
@@ -536,17 +584,19 @@ Public Class frmContangoMain
                 End If
             Catch ex As TaskCanceledException
                 Exit While
-            Catch ex As Exception
-                ' Non-fatal; keep watching
+            Catch
+                ' keep watching
             End Try
 
             Try
-                Await Task.Delay(200, ct) ' 5 Hz watch
+                Await Task.Delay(cadence, ct)
             Catch
                 Exit While
             End Try
         End While
     End Function
+
+
 
     ' Extracted from previous btnEnter_Click: actually sends the futures order
     Private Async Function ExecuteEnterNowAsync() As Task
@@ -573,6 +623,27 @@ Public Class frmContangoMain
             If Not _pm.IsActive Then btnEnter.Enabled = True
         End Try
     End Function
+
+    ' Basis samples pushed by watcher carry only value; time window enforced by queue length from cadence × window
+    ' Derive max buffer length from window/cadence
+    Private Function RollingMedianBasisPct() As Decimal
+        ' Enforce max buffer length derived from window/cadence
+        Dim maxLen As Integer = Math.Max(1, CInt(Math.Round(_basisWindowMs / Math.Max(1, _basisSampleMs), MidpointRounding.AwayFromZero)))
+        While _basisBuf.Count > maxLen
+            _basisBuf.Dequeue()
+        End While
+        If _basisBuf.Count = 0 Then Return 0D
+        Dim arr = _basisBuf.ToArray()
+        Array.Sort(arr)
+        Dim n = arr.Length
+        Dim mid = n \ 2
+        If (n And 1) = 1 Then
+            Return arr(mid)
+        Else
+            Return (arr(mid - 1) + arr(mid)) / 2D
+        End If
+    End Function
+
 
 
 End Class

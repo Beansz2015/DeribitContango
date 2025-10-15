@@ -326,20 +326,25 @@ Namespace DeribitContango
             If String.IsNullOrEmpty(state) Then state = payload.Value(Of String)("order_state")
             If String.IsNullOrEmpty(state) Then Return
 
-            ' Entry-side futures order lifecycle
-            If orderId = _lastFutOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
-                StopRequoteLoop()
-                StopFillMonitorLoop()
-                SyncLock _lock
-                    _pendingFutContracts = 0
-                    _hedgeWatchTsUtc = Date.MinValue
-                End SyncLock
-                _lastFutOrderId = Nothing
-                SetActive(False)
-                RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
+            ' Entry-side futures lifecycle
+            If orderId = _lastFutOrderId Then
+                ' Do NOT stop FillMonitor on "filled"; allow it to compute the final slice and submit spot
+                If state = "cancelled" OrElse state = "rejected" Then
+                    StopRequoteLoop()
+                    StopFillMonitorLoop()
+                    SyncLock _lock
+                        _pendingFutContracts = 0
+                        _hedgeWatchTsUtc = Date.MinValue
+                    End SyncLock
+                    _lastFutOrderId = Nothing
+                    SetActive(False)
+                    RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
+                End If
+                ' For "filled", FillMonitorLoopAsync will detect terminal state, post residual spot if any,
+                ' stop re-quote defensively, clear _lastFutOrderId and flip IsActive off.
             End If
 
-            ' Close-side futures order lifecycle
+            ' Close-side futures lifecycle
             If orderId = _lastCloseOrderId AndAlso (state = "filled" OrElse state = "cancelled" OrElse state = "rejected") Then
                 StopCloseRequoteLoop()
                 _lastCloseOrderId = Nothing
@@ -352,6 +357,7 @@ Namespace DeribitContango
                 End If
             End SyncLock
         End Sub
+
 
 
         ' Futures fills -> buy spot IOC; Spot fills -> persist
@@ -376,6 +382,7 @@ Namespace DeribitContango
 
                     Dim amtBtc As Decimal = 0D
                     Dim isSpot As Boolean = String.Equals(instr, SpotInstrument, StringComparison.OrdinalIgnoreCase)
+                    Dim isFutures As Boolean = String.Equals(instr, FuturesInstrument, StringComparison.OrdinalIgnoreCase)
 
                     If isSpot Then
                         ' For spot, Deribit "amount" is base currency
@@ -389,11 +396,32 @@ Namespace DeribitContango
         If(String.IsNullOrEmpty(sideStr), "", sideStr),
         instr,
         If(isSpot, CType(amtBtc, Decimal?), Nothing),
-        If(Not isSpot AndAlso contracts > 0, CType(contracts, Integer?), Nothing),
+        If(isFutures AndAlso contracts > 0, CType(contracts, Integer?), Nothing),
         px,
         t.Value(Of String)("fee_currency"),
         t.Value(Of Decimal?)("fee").GetValueOrDefault(0D)
       )
+
+                    ' NEW: futures-trade hedge slice when this trade belongs to active entry
+                    If isFutures AndAlso contracts > 0 AndAlso px > 0D Then
+                        Dim shouldHedge As Boolean = False
+                        SyncLock _lock
+                            shouldHedge = (Not String.IsNullOrEmpty(_lastFutOrderId)) AndAlso (_pendingFutContracts > 0)
+                        End SyncLock
+                        If shouldHedge Then
+                            ' Place spot hedge for the newly observed contracts at the trade price
+                            ' Fire-and-forget on thread pool to avoid blocking event thread
+                            Task.Run(Async Function()
+                                         Try
+                                             SyncLock _lock
+                                                 _pendingFutContracts = Math.Max(0, _pendingFutContracts - contracts)
+                                             End SyncLock
+                                             Await PlaceSpotIOCForContractsAsync(contracts, px)
+                                         Catch
+                                         End Try
+                                     End Function)
+                        End If
+                    End If
 
                     ' Maintain live spot hedge so CloseMonitor can unwind after futures is flat
                     If isSpot AndAlso amtBtc > 0D AndAlso Not String.IsNullOrEmpty(sideStr) Then
@@ -409,6 +437,7 @@ Namespace DeribitContango
                 ' ignore and continue
             End Try
         End Sub
+
 
 
         ' ============ Re-quote loop ============

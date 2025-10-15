@@ -11,6 +11,11 @@ Public Class frmContangoMain
 
     Private _uiTimer As System.Windows.Forms.Timer
 
+    ' Entry watch toggle
+    Private _entryWatchCts As Threading.CancellationTokenSource = Nothing
+    Private _entryWatchRunning As Boolean = False
+    Private _entryWatchAttempted As Boolean = False
+
     Private Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             _db = New DeribitContango.ContangoDatabase("contango.db3")
@@ -26,9 +31,9 @@ Public Class frmContangoMain
             AddHandler _api.PublicMessage, AddressOf OnPublicMessage
             AddHandler _api.OrderUpdate, AddressOf OnOrderUpdate
             AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
-            AddHandler _pm.Info, Sub(m) AppendLog(m)   ' <-- integration for re-quote/watchdog messages
+            AddHandler _pm.Info, Sub(m) AppendLog(m)
 
-            ' Initialize UI controls from PM defaults
+            ' UI ← PM defaults
             numRequoteTicks.Value = _pm.RequoteMinTicks
             numRequoteMs.Value = _pm.RequoteIntervalMs
 
@@ -38,7 +43,10 @@ Public Class frmContangoMain
             _uiTimer.Start()
 
             radUSD.Checked = True
-            numThreshold.Value = CDec(_pm.EntryThreshold)
+
+            ' IMPORTANT: show EntryThreshold as percent
+            numThreshold.Value = CDec(_pm.EntryThreshold * 100D)
+
             numSlippageBps.Value = CDec(_pm.MaxSlippageBps)
 
             AppendLog("Initialized UI and core components.")
@@ -46,6 +54,7 @@ Public Class frmContangoMain
             AppendLog("Load error: " & ex.Message)
         End Try
     End Sub
+
 
     ' 2) Add this handler in frmContangoMain:
     Private Sub OnPmActiveChanged(active As Boolean)
@@ -133,27 +142,36 @@ Public Class frmContangoMain
         End Try
     End Sub
 
-    Private Async Sub btnEnter_Click(sender As Object, e As EventArgs) Handles btnEnter.Click
+    ' Toggle basis watch on Enter button without async/await
+    Private Sub btnEnter_Click(sender As Object, e As EventArgs) Handles btnEnter.Click
         Try
+            ' If an entry is in progress, block
             If _pm.IsActive Then
                 AppendLog("Entry blocked: active position in progress.")
                 Return
             End If
-            btnEnter.Enabled = False   ' defensive UI disable
 
+            ' Toggle: if watch is running and no attempt yet, stop it
+            If _entryWatchRunning AndAlso Not _entryWatchAttempted Then
+                StopEntryWatch("Operator stopped watching.")
+                Return
+            End If
+
+            ' Start watching basis >= threshold (percent)
             _pm.UseUsdInput = radUSD.Checked
-            _pm.EntryThreshold = numThreshold.Value
             _pm.MaxSlippageBps = numSlippageBps.Value
+            _pm.EntryThreshold = CDec(numThreshold.Value) / 100D    ' percent → fraction
 
+            ' Validate amount now to fail fast, but do not place any orders yet
             Dim amt As Decimal
             If Not Decimal.TryParse(txtAmount.Text.Trim(), amt) OrElse amt <= 0D Then
                 Throw New ApplicationException("Invalid amount.")
             End If
 
+            ' Normalize preview and store to PM
             If _pm.UseUsdInput Then
                 Dim futRef = If(_mon.WeeklyFutureBestBid > 0D, _mon.WeeklyFutureBestBid, _mon.WeeklyFutureMark)
                 Dim minUsd = _pm.MinUsdForOneSpotStep(futRef)
-                ' Round to 10-USD multiples and enforce min
                 Dim roundedUsd = CDec(Math.Ceiling(Math.Max(amt, minUsd) / 10D) * 10D)
                 If roundedUsd <> amt Then
                     AppendLog($"Amount USD adjusted from {amt:0} to {roundedUsd:0} to satisfy 10-USD granularity and one-spot-step minimum")
@@ -163,7 +181,6 @@ Public Class frmContangoMain
                 _pm.TargetUsd = amt
                 _pm.TargetBtc = 0D
             Else
-                ' BTC input: snap to step so the later spot hedge is a single valid order
                 Dim stepv = _pm.SpotAmountStep
                 Dim minv = _pm.SpotMinAmount
                 Dim steps = CDec(Math.Round(Math.Max(amt, minv) / stepv, MidpointRounding.AwayFromZero))
@@ -177,19 +194,17 @@ Public Class frmContangoMain
                 _pm.TargetUsd = 0D
             End If
 
-
             If String.IsNullOrEmpty(_pm.FuturesInstrument) Then
                 Throw New ApplicationException("Weekly future not selected. Click Discover Weekly first.")
             End If
 
-            ' Futures first, spot on fills
-            Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
-            AppendLog("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
+            StartEntryWatch()
         Catch ex As Exception
-            btnEnter.Enabled = True    ' re-enable on failure path
             AppendLog("Enter error: " & ex.Message)
         End Try
     End Sub
+
+
 
     Private Async Sub btnRoll_Click(sender As Object, e As EventArgs) Handles btnRoll.Click
         Try
@@ -466,6 +481,98 @@ Public Class frmContangoMain
         End Try
     End Sub
 
+    'For state watch toggle
+    Private Sub StartEntryWatch()
+        Try
+            StopEntryWatch() ' idempotent
+            _entryWatchAttempted = False
+            _entryWatchCts = New Threading.CancellationTokenSource()
+            _entryWatchRunning = True
+            btnEnter.BackColor = Color.LightGreen
+            AppendLog($"Entry watch started: threshold={numThreshold.Value:0.####}% (comparing to lblBasis).")
+            Task.Run(Function() EntryWatchLoopAsync(_entryWatchCts.Token))
+        Catch ex As Exception
+            AppendLog("Entry watch start error: " & ex.Message)
+            _entryWatchRunning = False
+            btnEnter.BackColor = Color.LightSkyBlue
+        End Try
+    End Sub
+
+    Private Sub StopEntryWatch(Optional reason As String = Nothing)
+        Try
+            _entryWatchCts?.Cancel()
+        Catch
+        End Try
+        _entryWatchRunning = False
+        btnEnter.BackColor = Color.LightSkyBlue
+        If Not String.IsNullOrEmpty(reason) Then
+            AppendLog("Entry watch stopped: " & reason)
+        End If
+    End Sub
+
+    Private Async Function EntryWatchLoopAsync(ct As Threading.CancellationToken) As Task
+        ' Compare percent values: lblBasis ~ BasisMid*100 vs numThreshold.Value
+        Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+        While Not ct.IsCancellationRequested
+            Try
+                ' Early exit if position got activated elsewhere
+                If _pm.IsActive Then
+                    StopEntryWatch("position became active.")
+                    Exit While
+                End If
+
+                Dim basisPct As Decimal = _mon.BasisMid * 100D
+                If basisPct >= thresholdPct Then
+                    _entryWatchAttempted = True
+                    AppendLog($"Entry condition met: basis={basisPct:0.00}% >= {thresholdPct:0.00}%. Attempting entry...")
+                    ' Perform the actual entry on UI thread to reuse validations/log order
+                    If InvokeRequired Then
+                        BeginInvoke(Async Sub() Await ExecuteEnterNowAsync())
+                    Else
+                        Await ExecuteEnterNowAsync()
+                    End If
+                    StopEntryWatch("attempted entry.")
+                    Exit While
+                End If
+            Catch ex As TaskCanceledException
+                Exit While
+            Catch ex As Exception
+                ' Non-fatal; keep watching
+            End Try
+
+            Try
+                Await Task.Delay(200, ct) ' 5 Hz watch
+            Catch
+                Exit While
+            End Try
+        End While
+    End Function
+
+    ' Extracted from previous btnEnter_Click: actually sends the futures order
+    Private Async Function ExecuteEnterNowAsync() As Task
+        Try
+            If _pm.IsActive Then
+                AppendLog("Entry blocked: active position in progress.")
+                Return
+            End If
+
+            ' Ensure PM thresholds reflect percent input
+            _pm.EntryThreshold = CDec(numThreshold.Value) / 100D
+            _pm.MaxSlippageBps = numSlippageBps.Value
+            _pm.UseUsdInput = radUSD.Checked
+
+            btnEnter.Enabled = False  ' disable during send
+
+            ' Futures first, spot on fills
+            Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
+            AppendLog("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
+        Catch ex As Exception
+            AppendLog("Enter error: " & ex.Message)
+        Finally
+            ' Re-enable only if PM did not activate (otherwise OnPmActiveChanged handles it)
+            If Not _pm.IsActive Then btnEnter.Enabled = True
+        End Try
+    End Function
 
 
 End Class

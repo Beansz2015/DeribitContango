@@ -314,7 +314,7 @@ Namespace DeribitContango
             StartFillMonitorLoop()
 
             RaiseEvent Info($"Futures post_only placed at {ackPx:0.00}, contracts={contracts}, order_id={_lastFutOrderId}")
-            RaiseEvent Info("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
+            'RaiseEvent Info("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
         End Function
 
 

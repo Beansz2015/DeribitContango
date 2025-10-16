@@ -21,6 +21,15 @@ Public Class frmContangoMain
     Private _basisWindowMs As Integer = 3000   ' window length, e.g., last 3 seconds
     Private _basisSampleMs As Integer = 100    ' sample cadence from UI tick / watcher
 
+    ' ===== Expiry automation =====
+    Private _expiryAutoEnabled As Boolean = True
+    Private _expiryLeadSeconds As Integer = 60          ' arm 60s before expiry
+    Private _settlementLagSeconds As Integer = 45       ' wait 45s after 08:00 UTC
+    Private _expiryPollIntervalMs As Integer = 3000     ' poll settlement every 3s
+
+    Private _expiryArmedUtc As DateTime = Date.MinValue ' expiry time currently armed
+    Private _expiryWorkerCts As Threading.CancellationTokenSource = Nothing
+    Private _armedInstrument As String = Nothing        ' instrument being monitored for settlement
 
     Private Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
@@ -66,6 +75,7 @@ Public Class frmContangoMain
             numBasisSampleMs.Increment = 10
             numBasisSampleMs.Value = _basisSampleMs
 
+            ArmNextExpiry()
 
             AppendLog("Initialized UI and core components.")
         Catch ex As Exception
@@ -165,6 +175,7 @@ Public Class frmContangoMain
 
             Await _pm.RefreshInstrumentSpecsAsync()
             UpdateExpiryLabels()
+            ArmNextExpiry()
         Catch ex As Exception
             AppendLog("Discover error: " & ex.Message)
         End Try
@@ -250,6 +261,7 @@ Public Class frmContangoMain
         })
                 Await _pm.RefreshInstrumentSpecsAsync()
                 UpdateExpiryLabels()
+                ArmNextExpiry()
             End If
         Catch ex As Exception
             AppendLog("Roll error: " & ex.Message)
@@ -413,9 +425,114 @@ Public Class frmContangoMain
 
             lblMedianBasis.Text = $"{medPct:0.00}%"
 
+            If _expiryAutoEnabled Then
+                If _expiryArmedUtc = Date.MinValue Then ArmNextExpiry()
+                Dim nowUtc = DateTime.UtcNow
+
+                ' Pre-arm visibility (optional log)
+                If nowUtc >= _expiryArmedUtc.AddSeconds(-_expiryLeadSeconds) AndAlso nowUtc < _expiryArmedUtc Then
+                    ' Within pre-window; no action needed
+                End If
+
+                ' After expiry + lag, start worker once
+                If nowUtc >= _expiryArmedUtc.AddSeconds(_settlementLagSeconds) Then
+                    If _expiryWorkerCts Is Nothing OrElse _expiryWorkerCts.IsCancellationRequested Then
+                        _expiryWorkerCts = New Threading.CancellationTokenSource()
+                        AppendLog($"Expiry window reached for {_expiryArmedUtc:yyyy-MM-dd HH:mm:ss} UTC; starting settlement poll...")
+                        Task.Run(Function() ExpirySettlementWorkerAsync(_expiryWorkerCts.Token))
+                    End If
+                End If
+            End If
+
         Catch
         End Try
     End Sub
+
+    Private Async Function ExpirySettlementWorkerAsync(ct As Threading.CancellationToken) As Task
+        Try
+            ' 1) Poll for settlement of the armed instrument (if any)
+            Dim settled As Boolean = False
+            Dim lastChecked As DateTime = DateTime.MinValue
+
+            Do While Not ct.IsCancellationRequested AndAlso Not settled
+                Try
+                    Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+                    Dim foundCur As Boolean = False
+                    Dim sizeUsd As Integer = 0
+
+                    For Each p In posArr
+                        Dim o = p.Value(Of JObject)()
+                        Dim name = o.Value(Of String)("instrument_name")
+                        If Not String.IsNullOrEmpty(_armedInstrument) AndAlso String.Equals(name, _armedInstrument, StringComparison.OrdinalIgnoreCase) Then
+                            foundCur = True
+                            sizeUsd = Math.Abs(o.Value(Of Integer)("size")) ' inverse futures size ~ USD notional
+                            Exit For
+                        End If
+                    Next
+
+                    ' Settled if the armed instrument is gone or its size is zero
+                    settled = (Not foundCur) OrElse (sizeUsd = 0)
+
+                Catch
+                    ' network/API hiccup; keep polling
+                End Try
+
+                If Not settled Then
+                    Try
+                        Await Task.Delay(_expiryPollIntervalMs, ct)
+                    Catch
+                        Exit Do
+                    End Try
+                End If
+            Loop
+
+            If ct.IsCancellationRequested Then Return
+
+            ' 2) Discover the new nearest weekly (post-expiry this is next week)
+            Try
+                Await _pm.DiscoverNearestWeeklyAsync() ' no cutoff -> nearest non-expired is next weekly now
+                AppendLog($"Auto-discovered weekly after expiry: {_pm.FuturesInstrument}")
+                ' Subscribe to market streams for the new weekly and refresh specs/labels
+                Await _api.SubscribePublicAsync({
+        $"ticker.{_pm.FuturesInstrument}.100ms",
+        $"book.{_pm.FuturesInstrument}.100ms"
+      })
+                Await _pm.RefreshInstrumentSpecsAsync()
+                If InvokeRequired Then
+                    BeginInvoke(Sub() UpdateExpiryLabels())
+                Else
+                    UpdateExpiryLabels()
+                End If
+            Catch ex As Exception
+                AppendLog("Auto-discover error post-expiry: " & ex.Message)
+                ' Even on discover failure, re-arm to avoid getting stuck
+            End Try
+
+            ' 3) Start the basis watch (same flow as clicking Enter)
+            If InvokeRequired Then
+                BeginInvoke(Sub()
+                                If Not _pm.IsActive Then
+                                    btnEnter.PerformClick()
+                                End If
+                            End Sub)
+            Else
+                If Not _pm.IsActive Then
+                    btnEnter.PerformClick()
+                End If
+            End If
+
+        Catch
+            ' swallow worker exception; will re-arm below
+        Finally
+            ' 4) Re-arm for the next weekly expiry
+            _expiryWorkerCts?.Cancel()
+            _expiryWorkerCts = Nothing
+            _expiryArmedUtc = Date.MinValue
+            _armedInstrument = _pm.FuturesInstrument
+            ArmNextExpiry()
+        End Try
+    End Function
+
 
     Private Sub UpdateExpiryLabels()
         Dim expUtc = _pm.ExpiryUtc
@@ -644,6 +761,18 @@ Public Class frmContangoMain
         End If
     End Function
 
+
+    Private Sub ArmNextExpiry()
+        ' If a weekly is selected, arm its ExpiryUtc; otherwise arm the upcoming Friday 08:00 UTC
+        If Not String.IsNullOrEmpty(_pm.FuturesInstrument) AndAlso _pm.ExpiryUtc > Date.MinValue Then
+            _expiryArmedUtc = _pm.ExpiryUtc
+            _armedInstrument = _pm.FuturesInstrument
+        Else
+            _expiryArmedUtc = DeribitContango.ContangoBasisMonitor.NextWeeklyExpiryUtc(DateTime.UtcNow)
+            _armedInstrument = Nothing
+        End If
+        AppendLog($"Expiry automation armed for: {_expiryArmedUtc:yyyy-MM-dd HH:mm:ss} UTC")
+    End Sub
 
 
 End Class

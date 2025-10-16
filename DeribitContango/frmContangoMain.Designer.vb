@@ -59,6 +59,7 @@ Partial Class frmContangoMain
         Label18 = New Label()
         Label17 = New Label()
         grpEntry = New GroupBox()
+        chkAutoEnterAfterRoll = New CheckBox()
         numBasisSampleMs = New NumericUpDown()
         Label7 = New Label()
         numBasisWindowMs = New NumericUpDown()
@@ -499,6 +500,7 @@ Partial Class frmContangoMain
         ' grpEntry
         ' 
         grpEntry.BackColor = Color.Lavender
+        grpEntry.Controls.Add(chkAutoEnterAfterRoll)
         grpEntry.Controls.Add(numBasisSampleMs)
         grpEntry.Controls.Add(Label7)
         grpEntry.Controls.Add(numBasisWindowMs)
@@ -529,6 +531,18 @@ Partial Class frmContangoMain
         grpEntry.TabIndex = 3
         grpEntry.TabStop = False
         grpEntry.Text = "Entry / Risk"
+        ' 
+        ' chkAutoEnterAfterRoll
+        ' 
+        chkAutoEnterAfterRoll.AutoSize = True
+        chkAutoEnterAfterRoll.Checked = True
+        chkAutoEnterAfterRoll.CheckState = CheckState.Checked
+        chkAutoEnterAfterRoll.Location = New Point(944, 22)
+        chkAutoEnterAfterRoll.Name = "chkAutoEnterAfterRoll"
+        chkAutoEnterAfterRoll.Size = New Size(156, 29)
+        chkAutoEnterAfterRoll.TabIndex = 21
+        chkAutoEnterAfterRoll.Text = "Enter After Roll"
+        chkAutoEnterAfterRoll.UseVisualStyleBackColor = True
         ' 
         ' numBasisSampleMs
         ' 
@@ -684,7 +698,7 @@ Partial Class frmContangoMain
         ' btnRoll
         ' 
         btnRoll.BackColor = Color.LightGoldenrodYellow
-        btnRoll.Location = New Point(944, 37)
+        btnRoll.Location = New Point(944, 59)
         btnRoll.Margin = New Padding(4, 5, 4, 5)
         btnRoll.Name = "btnRoll"
         btnRoll.Size = New Size(156, 38)
@@ -794,7 +808,7 @@ Partial Class frmContangoMain
         Controls.Add(grpConnection)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V1.9a"
+        Text = "Deribit Contango Basis Trader - V1.9b"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -874,4 +888,5 @@ Partial Class frmContangoMain
     Friend WithEvents Label7 As Label
     Friend WithEvents lblMedianBasis As Label
     Friend WithEvents Label11 As Label
+    Friend WithEvents chkAutoEnterAfterRoll As CheckBox
 End Class

@@ -251,22 +251,93 @@ Public Class frmContangoMain
                 AppendLog("Roll blocked: active position in progress.")
                 Return
             End If
+
+            ' 1) Close current and select next weekly
             Await _pm.RollToNextWeeklyAsync(_mon.IndexPriceUsd)
             AppendLog("Requested roll: closed current via reduce_only and selected next weekly.")
 
+            ' 2) Wire new weekly feeds and specs
             If Not String.IsNullOrEmpty(_pm.FuturesInstrument) Then
                 Await _api.SubscribePublicAsync({
-          $"ticker.{_pm.FuturesInstrument}.100ms",
-          $"book.{_pm.FuturesInstrument}.100ms"
-        })
+        $"ticker.{_pm.FuturesInstrument}.100ms",
+        $"book.{_pm.FuturesInstrument}.100ms"
+      })
                 Await _pm.RefreshInstrumentSpecsAsync()
                 UpdateExpiryLabels()
                 ArmNextExpiry()
             End If
+
+            ' 3) Auto-entry after roll (gated by checkbox)
+            If chkAutoEnterAfterRoll.Checked Then
+                If String.IsNullOrEmpty(_pm.FuturesInstrument) Then
+                    Throw New ApplicationException("Weekly future not selected after roll.")
+                End If
+
+                _pm.UseUsdInput = radUSD.Checked
+                _pm.MaxSlippageBps = numSlippageBps.Value
+                _pm.EntryThreshold = CDec(numThreshold.Value) / 100D    ' percent → fraction
+
+                ' Validate and normalize amount into PM targets
+                Dim amt As Decimal
+                If Not Decimal.TryParse(txtAmount.Text.Trim(), amt) OrElse amt <= 0D Then
+                    Throw New ApplicationException("Invalid amount.")
+                End If
+
+                If _pm.UseUsdInput Then
+                    Dim futRef = If(_mon.WeeklyFutureBestBid > 0D, _mon.WeeklyFutureBestBid, _mon.WeeklyFutureMark)
+                    Dim minUsd = _pm.MinUsdForOneSpotStep(futRef)
+                    Dim roundedUsd = CDec(Math.Ceiling(Math.Max(amt, minUsd) / 10D) * 10D)
+                    If roundedUsd <> amt Then
+                        AppendLog($"Amount USD adjusted from {amt:0} to {roundedUsd:0} to satisfy 10-USD granularity and one-spot-step minimum")
+                        amt = roundedUsd
+                        txtAmount.Text = amt.ToString("0")
+                    End If
+                    _pm.TargetUsd = amt
+                    _pm.TargetBtc = 0D
+                Else
+                    Dim stepv = _pm.SpotAmountStep
+                    Dim minv = _pm.SpotMinAmount
+                    Dim steps = CDec(Math.Round(Math.Max(amt, minv) / stepv, MidpointRounding.AwayFromZero))
+                    Dim snapped = steps * stepv
+                    If snapped <> amt Then
+                        AppendLog($"Amount BTC adjusted from {amt:0.########} to {snapped:0.########} to satisfy spot increment")
+                        amt = snapped
+                        txtAmount.Text = amt.ToString("0.########")
+                    End If
+                    _pm.TargetBtc = amt
+                    _pm.TargetUsd = 0D
+                End If
+
+                ' Optional: clear pre-roll samples so median reflects the new weekly only
+                _basisBuf.Clear()
+
+                ' Compute current rolling median and decide immediate vs. watch
+                Dim medPct As Decimal = RollingMedianBasisPct()
+                Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+
+                If medPct >= thresholdPct Then
+                    AppendLog($"Auto-entry after roll: median basis={medPct:0.00}% >= {thresholdPct:0.00}%. Executing now...")
+                    ' Execute immediately on UI thread
+                    If InvokeRequired Then
+                        BeginInvoke(Async Sub() Await ExecuteEnterNowAsync())
+                    Else
+                        Await ExecuteEnterNowAsync()
+                    End If
+                Else
+                    ' Arm the watcher to trigger on sustained basis
+                    StartEntryWatch()
+                    AppendLog($"Auto-entry armed after roll: watching median basis >= {thresholdPct:0.00}% (current={medPct:0.00}%).")
+                End If
+            Else
+                AppendLog("Auto-entry after roll is disabled (checkbox off).")
+            End If
+
+
         Catch ex As Exception
             AppendLog("Roll error: " & ex.Message)
         End Try
     End Sub
+
 
     Private Async Sub btnCloseAll_Click(sender As Object, e As EventArgs) Handles btnCloseAll.Click
         Try

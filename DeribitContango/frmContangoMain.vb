@@ -525,13 +525,6 @@ Public Class frmContangoMain
             If _expiryAutoEnabled Then
                 If _expiryArmedUtc = Date.MinValue Then ArmNextExpiry()
                 Dim nowUtc = DateTime.UtcNow
-
-                ' Pre-arm visibility (optional log)
-                If nowUtc >= _expiryArmedUtc.AddSeconds(-_expiryLeadSeconds) AndAlso nowUtc < _expiryArmedUtc Then
-                    ' Within pre-window; no action needed
-                End If
-
-                ' After expiry + lag, start worker once
                 If nowUtc >= _expiryArmedUtc.AddSeconds(_settlementLagSeconds) Then
                     If _expiryWorkerCts Is Nothing OrElse _expiryWorkerCts.IsCancellationRequested Then
                         _expiryWorkerCts = New Threading.CancellationTokenSource()
@@ -544,6 +537,7 @@ Public Class frmContangoMain
         Catch
         End Try
     End Sub
+
 
 
     Private Async Function ExpirySettlementWorkerAsync(ct As Threading.CancellationToken) As Task

@@ -334,6 +334,7 @@ Namespace DeribitContango
 
 
 
+
         ' Futures private order updates (open/filled/cancelled) for cleanup
         Private Sub OnOrderUpdate(currency As String, payload As JObject)
             Dim orderId = payload.Value(Of String)("order_id")
@@ -925,6 +926,7 @@ Namespace DeribitContango
                 RaiseEvent Info("Watchdog error: " & ex.Message)
             End Try
         End Function
+
 
 
         ' ============ Admin ops ============

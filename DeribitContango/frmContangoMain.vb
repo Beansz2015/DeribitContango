@@ -31,6 +31,9 @@ Public Class frmContangoMain
     Private _expiryWorkerCts As Threading.CancellationTokenSource = Nothing
     Private _armedInstrument As String = Nothing        ' instrument being monitored for settlement
 
+    ' Debounce flag for signal-driven cancel
+    Private _signalCancelInFlight As Boolean = False
+
     Private Sub frmContangoMain_Load(sender As Object, e As EventArgs) Handles MyBase.Load
         Try
             _db = New DeribitContango.ContangoDatabase("contango.db3")
@@ -477,24 +480,47 @@ Public Class frmContangoMain
             If (DateTime.UtcNow - lastSnap).TotalSeconds >= 2 Then
                 lastSnap = DateTime.UtcNow
                 _db.SaveSnapshot(
-                  DateTime.UtcNow,
-                  _mon.IndexPriceUsd,
-                  _mon.SpotBestBid,
-                  _mon.SpotBestAsk,
-                  _mon.WeeklyFutureBestBid,
-                  _mon.WeeklyFutureBestAsk,
-                  _mon.WeeklyFutureMark,
-                  _pm.FuturesInstrument,
-                  _pm.ExpiryUtc
-                )
+              DateTime.UtcNow,
+              _mon.IndexPriceUsd,
+              _mon.SpotBestBid,
+              _mon.SpotBestAsk,
+              _mon.WeeklyFutureBestBid,
+              _mon.WeeklyFutureBestAsk,
+              _mon.WeeklyFutureMark,
+              _pm.FuturesInstrument,
+              _pm.ExpiryUtc
+            )
             End If
 
-            ' Keep the median label live:
+            ' Keep the median label live and compute rolling median
             Dim samplePct As Decimal = _mon.BasisMid * 100D
             _basisBuf.Enqueue(samplePct)
             Dim medPct As Decimal = RollingMedianBasisPct()
-
             lblMedianBasis.Text = $"{medPct:0.00}%"
+
+            ' ========== Signal-driven watchdog: cancel only when median < threshold ==========
+            If _pm IsNot Nothing AndAlso _pm.HasLiveEntryOrder Then
+                Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+                If medPct < thresholdPct AndAlso Not _signalCancelInFlight Then
+                    _signalCancelInFlight = True
+                    AppendLog($"Watchdog: median basis={medPct:0.00}% < threshold={thresholdPct:0.00}%. Cancelling entry and resuming basis watch...")
+                    ' Cancel on a worker, then resume basis watch after PM reports inactive
+                    Task.Run(Async Function()
+                                 Try
+                                     Await _pm.CancelEntryDueToSignalAsync("median basis below threshold")
+                                 Catch
+                                     ' swallow to keep UI responsive
+                                 End Try
+                                 BeginInvoke(Sub()
+                                                 _signalCancelInFlight = False
+                                                 If Not _pm.IsActive Then
+                                                     StartEntryWatch()
+                                                 End If
+                                             End Sub)
+                             End Function)
+                End If
+            End If
+            ' ================================================================================
 
             If _expiryAutoEnabled Then
                 If _expiryArmedUtc = Date.MinValue Then ArmNextExpiry()
@@ -518,6 +544,7 @@ Public Class frmContangoMain
         Catch
         End Try
     End Sub
+
 
     Private Async Function ExpirySettlementWorkerAsync(ct As Threading.CancellationToken) As Task
         Try

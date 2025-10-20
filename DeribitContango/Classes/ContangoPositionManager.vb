@@ -69,6 +69,13 @@ Namespace DeribitContango
         ' Cancel+repost grace window to ignore transient "cancelled" states
         Private _repostGuardUntilUtc As DateTime = Date.MinValue
 
+        ' New: probe if an entry order is live
+        Public ReadOnly Property HasLiveEntryOrder As Boolean
+            Get
+                Return Not String.IsNullOrEmpty(_lastFutOrderId)
+            End Get
+        End Property
+
 
         ' Is the fill monitor running now?
         Private ReadOnly Property IsFillMonitorActive As Boolean
@@ -254,9 +261,10 @@ Namespace DeribitContango
 
         ' ============ Entry: futures first, spot on fills ============
 
+        ' ============ Entry: futures first, spot on fills ============
         Public Async Function EnterBasisAsync(indexPrice As Decimal,
-                                      futBestBid As Decimal,
-                                      spotBestAsk As Decimal) As Task
+                              futBestBid As Decimal,
+                              spotBestAsk As Decimal) As Task
             ' Block concurrent entries
             SyncLock _lock
                 If _pendingFutContracts > 0 OrElse Not String.IsNullOrEmpty(_lastFutOrderId) Then
@@ -285,16 +293,16 @@ Namespace DeribitContango
             Dim amountUsd As Integer = contracts * 10  ' Deribit inverse futures: 10 USD per contract
 
             Dim futOrder = Await _api.PlaceOrderAsync(
-    instrument:=FuturesInstrument,
-    side:="sell",
-    amount:=amountUsd,              ' USD notional required for futures
-    price:=pxF,
-    orderType:="limit",
-    tif:="good_til_cancelled",
-    postOnly:=True,
-    reduceOnly:=False,
-    label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
-  )
+        instrument:=FuturesInstrument,
+        side:="sell",
+        amount:=amountUsd,              ' USD notional required for futures
+        price:=pxF,
+        orderType:="limit",
+        tif:="good_til_cancelled",
+        postOnly:=True,
+        reduceOnly:=False,
+        label:=$"ContangoFutShort_{DateTime.UtcNow:HHmmss}"
+      )
             TrackOrder(futOrder)
 
             ' Use exchange-acknowledged price for logging to match the platform
@@ -315,13 +323,15 @@ Namespace DeribitContango
 
             SetActive(True)
 
-            StartHedgeFallbackTimer()
+            ' Removed: StartHedgeFallbackTimer()  ← time-based cancel is disabled
+
             StartRequoteLoop()
             StartFillMonitorLoop()
 
             RaiseEvent Info($"Futures post_only placed at {ackPx:0.00}, contracts={contracts}, order_id={_lastFutOrderId}")
             'RaiseEvent Info("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
         End Function
+
 
 
         ' Futures private order updates (open/filled/cancelled) for cleanup
@@ -818,20 +828,20 @@ Namespace DeribitContango
 
         ' ============ Watchdog: cancel unfilled futures on timeout or decay ============
 
-        Private Sub StartHedgeFallbackTimer()
-            Try
-                Task.Run(AddressOf HedgeFallbackTimerAsync)
-            Catch
-            End Try
-        End Sub
+        'Private Sub StartHedgeFallbackTimer()
+        ' Try
+        '         Task.Run(AddressOf HedgeFallbackTimerAsync)
+        ' Catch
+        ' End Try
+        ' End Sub
 
-        Private Async Function HedgeFallbackTimerAsync() As Task
-            Try
-                Await Task.Delay(_hedgeTimeoutSeconds * 1000).ConfigureAwait(False)
-                Await HedgeFallbackAsync().ConfigureAwait(False)
-            Catch
-            End Try
-        End Function
+        ' Private Async Function HedgeFallbackTimerAsync() As Task
+        ' Try
+        '         Await Task.Delay(_hedgeTimeoutSeconds * 1000).ConfigureAwait(False)
+        '         Await HedgeFallbackAsync().ConfigureAwait(False)
+        ' Catch
+        ' End Try
+        ' End Function
 
         Private Async Function HedgeFallbackAsync() As Task
             Try
@@ -861,6 +871,47 @@ Namespace DeribitContango
                 _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(1)
 
                 ' 4) Cleanup entry cycle
+                StopRequoteLoop()
+                StopFillMonitorLoop()
+                SyncLock _lock
+                    _pendingFutContracts = 0
+                    _hedgeWatchTsUtc = Date.MinValue
+                End SyncLock
+                _lastFutOrderId = Nothing
+                SetActive(False)
+
+            Catch ex As Exception
+                RaiseEvent Info("Watchdog error: " & ex.Message)
+            End Try
+        End Function
+
+
+        ' New: cancel entry due to signal invalidation (median basis < threshold)
+        Public Async Function CancelEntryDueToSignalAsync(reason As String) As Task
+            Try
+                Dim nowUtc = DateTime.UtcNow
+
+                ' Guard: if a cancel+repost just happened, skip to avoid racing transient states
+                Dim guardActive As Boolean = (nowUtc <= _repostGuardUntilUtc)
+                If guardActive Then
+                    RaiseEvent Info("Watchdog: skip cancel due to recent re-quote repost (cooldown active).")
+                    Return
+                End If
+
+                ' Only if an entry order is actually live
+                If String.IsNullOrEmpty(_lastFutOrderId) Then
+                    RaiseEvent Info("Watchdog: no active futures order id; nothing to cancel.")
+                    Return
+                End If
+
+                ' Cancel resting futures order and release state
+                Await _api.CancelOrderAsync(_lastFutOrderId)
+                RaiseEvent Info($"Watchdog: cancelled resting futures order id={_lastFutOrderId} ({reason}).")
+
+                ' Short guard to prevent immediate retriggers on stale events
+                _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(1)
+
+                ' Cleanup entry cycle
                 StopRequoteLoop()
                 StopFillMonitorLoop()
                 SyncLock _lock

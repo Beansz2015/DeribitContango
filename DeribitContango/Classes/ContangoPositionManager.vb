@@ -181,16 +181,27 @@ Namespace DeribitContango
             Next
 
             ' Futures
-            If Not String.IsNullOrEmpty(FuturesInstrument) Then
-                Dim futSet = Await _api.PublicGetInstrumentsAsync("BTC", "future", False)
-                For Each it In futSet
-                    Dim o = it.Value(Of JObject)()
-                    If String.Equals(o.Value(Of String)("instrument_name"), FuturesInstrument, StringComparison.OrdinalIgnoreCase) Then
-                        _futTick = o.Value(Of Decimal?)("tick_size").GetValueOrDefault(_futTick)
-                    End If
-                Next
+            If String.IsNullOrEmpty(FuturesInstrument) Then
+                Return
             End If
+
+            Dim futSet = Await _api.PublicGetInstrumentsAsync("BTC", "future", False)
+            For Each it In futSet
+                Dim o = it.Value(Of JObject)
+                Dim name = o.Value(Of String)("instrument_name")
+                If String.Equals(name, FuturesInstrument, StringComparison.OrdinalIgnoreCase) Then
+                    Dim tickSz = o.Value(Of Decimal?)("tick_size").GetValueOrDefault(If(_futTick > 0D, _futTick, 0.5D))
+                    _futTick = tickSz
+                    Dim expMs = o.Value(Of Long?)("expiration_timestamp").GetValueOrDefault(0L)
+                    If expMs > 0 Then
+                        ExpiryUtc = DateTimeOffset.FromUnixTimeMilliseconds(expMs).UtcDateTime
+                    End If
+                    Exit For
+                End If
+            Next
         End Function
+
+
 
         ' ============ Helpers ============
 
@@ -256,6 +267,20 @@ Namespace DeribitContango
             If k < minK Then k = minK
             Dim usdOut = k * 10D
             Return (usdOut, k)
+        End Function
+
+        ' Converts inverse futures contracts to BTC amount at a given index/mark price.
+        Public Function ContractsToBtcAtPrice(contracts As Integer, indexPrice As Decimal) As Decimal
+            If indexPrice <= 0D OrElse contracts = 0 Then Return 0D
+            ' Inverse contract: 10 USD per contract; BTC = USD / price
+            Return (contracts * 10D) / indexPrice
+        End Function
+
+        ' Rounds BTC to the tradable step for BTC_USDC (0.0001); adjust if you expose metadata.
+        Public Function RoundSpotAmount(amountBtc As Decimal) As Decimal
+            Dim stepSz As Decimal = 0.0001D
+            Dim steps = Math.Truncate(amountBtc / stepSz)
+            Return steps * stepSz
         End Function
 
 

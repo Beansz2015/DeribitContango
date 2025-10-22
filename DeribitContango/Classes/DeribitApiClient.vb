@@ -124,9 +124,6 @@ Namespace DeribitContango
         End Function
 
 
-
-
-
         Public Async Function EditOrderAsync(orderId As String,
                                              Optional amount As Decimal? = Nothing,
                                              Optional contracts As Integer? = Nothing,
@@ -316,6 +313,16 @@ Namespace DeribitContango
             End If
             Dim res = Await SendAsync("private/close_position", p)
             Return res("result")?.Value(Of JObject)()
+        End Function
+
+        ' Reads account summary for a currency (e.g., BTC) to obtain tradable spot balance.
+        Public Async Function GetAccountSummaryAsync(currency As String) As Task(Of JObject)
+            Dim p As New JObject From {
+        {"currency", currency},
+        {"extended", True}
+    }
+            Dim res = Await SendAsync("private/get_account_summary", p)
+            Return res("result").Value(Of JObject)()
         End Function
 
 

@@ -69,6 +69,12 @@ Namespace DeribitContango
         ' Cancel+repost grace window to ignore transient "cancelled" states
         Private _repostGuardUntilUtc As DateTime = Date.MinValue
 
+        ' Public way to set the active-cycle flag during startup redetection.
+        Public Sub SetActiveFromExternal(active As Boolean)
+            SetActive(active)
+        End Sub
+
+
         ' New: probe if an entry order is live
         Public ReadOnly Property HasLiveEntryOrder As Boolean
             Get

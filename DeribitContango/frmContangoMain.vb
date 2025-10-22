@@ -87,6 +87,97 @@ Public Class frmContangoMain
     End Sub
 
 
+    ' Detects existing BTC dated futures + spot BTC on startup and syncs runtime.
+    Private Async Function SyncPositionOnStartupAsync() As Task
+        Try
+            ' 1) Find a non-perpetual BTC futures position with non-zero size
+            Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+            Dim chosenName As String = Nothing
+            Dim signedContracts As Integer = 0
+
+            For Each p In posArr
+                Dim o = p.Value(Of JObject)()
+                Dim kind = o.Value(Of String)("kind")
+                Dim name = o.Value(Of String)("instrument_name")
+                If String.IsNullOrEmpty(kind) OrElse String.IsNullOrEmpty(name) Then Continue For
+                Dim isPerp = (name.IndexOf("PERPETUAL", StringComparison.OrdinalIgnoreCase) >= 0)
+                If kind = "future" AndAlso Not isPerp Then
+                    ' Prefer explicit contracts; fallback to size_usd/10 if only USD is present
+                    Dim k As Integer = o.Value(Of Integer?)("size").GetValueOrDefault(0)
+                    If k = 0 Then
+                        Dim usd = o.Value(Of Decimal?)("size_usd").GetValueOrDefault(0D)
+                        If usd <> 0D Then k = CInt(Math.Truncate(usd / 10D))
+                    End If
+                    If k <> 0 Then
+                        chosenName = name
+                        signedContracts = k
+                        Exit For
+                    End If
+                End If
+            Next
+
+            ' 2) Read BTC spot balance for tradability check
+            Dim acct = Await _api.GetAccountSummaryAsync("BTC")
+            Dim spotBtc As Decimal = 0D
+            ' Prefer available_funds; fallback to balance if not present
+            Dim af = acct.Value(Of Decimal?)("available_funds")
+            If af.HasValue Then
+                spotBtc = af.Value
+            Else
+                Dim bal = acct.Value(Of Decimal?)("balance")
+                If bal.HasValue Then spotBtc = bal.Value
+            End If
+            Dim tradableSpot As Boolean = (spotBtc >= 0.0001D)
+
+            ' 3) Apply your rules to set runtime state
+            If Not String.IsNullOrEmpty(chosenName) Then
+                If Not tradableSpot Then
+                    AppendLog($"Startup error: futures position detected ({chosenName}, size={signedContracts}) but spot BTC < 0.0001; manual intervention required.")
+                    _pm.SetActiveFromExternal(False)
+                    btnEnter.Enabled = True
+                    Return
+                End If
+
+                _pm.FuturesInstrument = chosenName
+                _mon.WeeklyInstrument = chosenName
+
+                Await _pm.RefreshInstrumentSpecsAsync()
+                _mon.WeeklyExpiryUtc = _pm.ExpiryUtc
+
+                _pm.SetActiveFromExternal(True)
+
+                ' Subscribe futures feeds for discovered weekly
+                Await _api.SubscribePublicAsync({
+                $"ticker.{_pm.FuturesInstrument}.100ms",
+                $"book.{_pm.FuturesInstrument}.100ms"
+            })
+
+                ' Update expiry UI + automation
+                UpdateExpiryLabels()
+                ArmNextExpiry()
+
+                AppendLog($"Redetected active basis: futures={_pm.FuturesInstrument} (contracts={signedContracts}), spot={spotBtc:0.00000000} BTC; expiry automation armed.")
+
+                ' Reflect active state in UI
+                btnEnter.Enabled = False
+                _entryWatchRunning = False
+                _entryWatchAttempted = False
+            Else
+                If tradableSpot Then
+                    AppendLog($"Startup note: no futures position, but spot={spotBtc:0.00000000} BTC remains; not an active basis trade.")
+                Else
+                    AppendLog("Startup: no futures position and spot < 0.0001 BTC; idle and ready.")
+                End If
+                _pm.SetActiveFromExternal(False)
+                btnEnter.Enabled = True
+            End If
+
+        Catch ex As Exception
+            AppendLog("Startup position redetect error: " & ex.Message)
+        End Try
+    End Function
+
+
     ' 2) Add this handler in frmContangoMain:
     Private Sub OnPmActiveChanged(active As Boolean)
         If InvokeRequired Then
@@ -158,6 +249,9 @@ Public Class frmContangoMain
       })
 
             Await _pm.RefreshInstrumentSpecsAsync()
+
+            ' NEW: perform startup position re-detection and sync
+            Await SyncPositionOnStartupAsync()
 
             AppendLog("Subscriptions active. Click Discover Weekly to select nearest future.")
         Catch ex As Exception

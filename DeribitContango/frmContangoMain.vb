@@ -593,20 +593,22 @@ Public Class frmContangoMain
                 If medPct < thresholdPct AndAlso Not _signalCancelInFlight Then
                     _signalCancelInFlight = True
                     AppendLog($"Watchdog: median basis={medPct:0.00}% < threshold={thresholdPct:0.00}%. Cancelling entry and resuming basis watch...")
-                    ' Cancel on a worker, then resume basis watch after PM reports inactive
-                    Task.Run(Async Function()
-                                 Try
-                                     Await _pm.CancelEntryDueToSignalAsync("median basis below threshold")
-                                 Catch
-                                     ' swallow to keep UI responsive
-                                 End Try
-                                 BeginInvoke(Sub()
-                                                 _signalCancelInFlight = False
-                                                 If Not _pm.IsActive Then
-                                                     StartEntryWatch()
-                                                 End If
-                                             End Sub)
-                             End Function)
+
+                    ' Cancel on a worker, then resume watch after PM reports inactive
+                    Call Task.Run(Async Function()
+                                      Try
+                                          Await _pm.CancelEntryDueToSignalAsync("median basis below threshold")
+                                      Catch
+                                          ' swallow
+                                      End Try
+                                      BeginInvoke(Sub()
+                                                      _signalCancelInFlight = False
+                                                      If Not _pm.IsActive Then
+                                                          StartEntryWatch()
+                                                      End If
+                                                  End Sub)
+                                  End Function)
+
                 End If
             End If
             ' ================================================================================
@@ -816,21 +818,22 @@ Public Class frmContangoMain
     End Sub
 
     'For state watch toggle
+    ' Arms the entry watcher; runs until an order is actually placed or PM becomes active.
     Private Sub StartEntryWatch()
-        Try
-            StopEntryWatch() ' idempotent
-            _entryWatchAttempted = False
-            _entryWatchCts = New Threading.CancellationTokenSource()
-            _entryWatchRunning = True
-            btnEnter.BackColor = Color.LightGreen
-            AppendLog($"Entry watch started: threshold={numThreshold.Value:0.####}% (comparing to lblBasis).")
-            Task.Run(Function() EntryWatchLoopAsync(_entryWatchCts.Token))
-        Catch ex As Exception
-            AppendLog("Entry watch start error: " & ex.Message)
-            _entryWatchRunning = False
-            btnEnter.BackColor = Color.LightSkyBlue
-        End Try
+        If _entryWatchRunning Then Return
+        _entryWatchCts = New Threading.CancellationTokenSource()
+        _entryWatchRunning = True
+        _entryWatchAttempted = False
+
+        Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+        AppendLog($"Entry watch started: threshold={thresholdPct:0.##}% (comparing to lblBasis).")
+
+        ' VB.NET: do not use "_ ="; either Call or assign to a named variable.
+        Call Task.Run(Function() EntryWatchLoopAsync(_entryWatchCts.Token))
     End Sub
+
+
+
 
     Private Sub StopEntryWatch(Optional reason As String = Nothing)
         Try
@@ -844,83 +847,108 @@ Public Class frmContangoMain
         End If
     End Sub
 
+    ' Watches rolling-median basis and attempts entry when median >= threshold.
+    ' IMPORTANT: Do not stop the watcher unless a futures order is live or PM becomes active.
     Private Async Function EntryWatchLoopAsync(ct As Threading.CancellationToken) As Task
-        Dim thresholdPct As Decimal = CDec(numThreshold.Value)
-        Dim cadence As Integer = Math.Max(50, _basisSampleMs)
+        Try
+            Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+            Dim sampleMs As Integer = _basisSampleMs
 
-        While Not ct.IsCancellationRequested
-            Try
-                If _pm.IsActive Then
-                    StopEntryWatch("position became active.")
+            While Not ct.IsCancellationRequested
+                If _pm IsNot Nothing AndAlso (_pm.IsActive OrElse _pm.HasLiveEntryOrder) Then
                     Exit While
                 End If
 
-                ' Sample basis as percent and enqueue
-                Dim samplePct As Decimal = _mon.BasisMid * 100D
-                _basisBuf.Enqueue(samplePct)
-
-                ' Compute rolling median over window
                 Dim medPct As Decimal = RollingMedianBasisPct()
 
-                ' NEW: show median in the label
-                If InvokeRequired Then
-                    BeginInvoke(Sub() lblMedianBasis.Text = $"{medPct:0.00}%")
-                Else
-                    lblMedianBasis.Text = $"{medPct:0.00}%"
-                End If
-
                 If medPct >= thresholdPct Then
-                    _entryWatchAttempted = True
                     AppendLog($"Entry condition met: median basis={medPct:0.00}% >= {thresholdPct:0.00}%. Attempting entry...")
-                    If InvokeRequired Then
-                        BeginInvoke(Async Sub() Await ExecuteEnterNowAsync())
-                    Else
-                        Await ExecuteEnterNowAsync()
-                    End If
-                    StopEntryWatch("attempted entry.")
-                    Exit While
-                End If
-            Catch ex As TaskCanceledException
-                Exit While
-            Catch
-                ' keep watching
-            End Try
+                    _entryWatchAttempted = True
 
-            Try
-                Await Task.Delay(cadence, ct)
-            Catch
-                Exit While
-            End Try
-        End While
+                    Await ExecuteEnterNowAsync()
+
+                    If _pm IsNot Nothing AndAlso (_pm.IsActive OrElse _pm.HasLiveEntryOrder) Then
+                        Exit While
+                    Else
+                        Await Task.Delay(Math.Max(sampleMs, 250), ct)
+                        Continue While
+                    End If
+                End If
+
+                Await Task.Delay(sampleMs, ct)
+            End While
+
+        Catch ex As TaskCanceledException
+            ' normal
+        Catch ex As Exception
+            AppendLog("Entry watch error: " & ex.Message)
+        Finally
+            _entryWatchRunning = False
+            _entryWatchCts = Nothing
+            If _pm IsNot Nothing AndAlso (_pm.IsActive OrElse _pm.HasLiveEntryOrder) Then
+                AppendLog("Entry watch stopped: order live or cycle active.")
+            Else
+                AppendLog("Entry watch stopped: idle.")
+            End If
+        End Try
     End Function
+
+
+
 
 
 
     ' Extracted from previous btnEnter_Click: actually sends the futures order
+    ' Attempts to place the futures leg; if pre-order validation fails, auto-continue the watcher.
     Private Async Function ExecuteEnterNowAsync() As Task
         Try
-            If _pm.IsActive Then
+            If _pm Is Nothing Then
+                AppendLog("Enter blocked: PM not initialized.")
+                Return
+            End If
+
+            If _pm.IsActive OrElse _pm.HasLiveEntryOrder Then
                 AppendLog("Entry blocked: active position in progress.")
                 Return
             End If
 
-            ' Ensure PM thresholds reflect percent input
+            ' Configure PM from UI
             _pm.EntryThreshold = CDec(numThreshold.Value) / 100D
             _pm.MaxSlippageBps = numSlippageBps.Value
             _pm.UseUsdInput = radUSD.Checked
 
-            btnEnter.Enabled = False  ' disable during send
+            btnEnter.Enabled = False
 
-            ' Futures first, spot on fills
+            ' Attempt to enter; PM will validate instantaneous BasisMid vs EntryThreshold
             Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
-            AppendLog("Submitted futures post_only; re-quote active until fills trigger spot IOC hedges.")
+
+            ' If we reach here without exception, PM either placed an order or marked active
+            If _pm.IsActive OrElse _pm.HasLiveEntryOrder Then
+                AppendLog("Entry disabled: position cycle active.")
+            End If
+
         Catch ex As Exception
-            AppendLog("Enter error: " & ex.Message)
+            ' Pre-order failures (e.g., BasisMid dipped below threshold) land here
+            AppendLog($"Enter error: {ex.Message}")
+
+            ' Auto-continue the watcher when no order was placed and PM is still inactive
+            If (_pm IsNot Nothing) AndAlso (Not _pm.IsActive) AndAlso (Not _pm.HasLiveEntryOrder) Then
+                ' If the watcher was stopped by prior logic, re-arm it
+                If Not _entryWatchRunning Then
+                    Dim thresholdPct As Decimal = CDec(numThreshold.Value)
+                    AppendLog($"Entry watch auto-resume: threshold={thresholdPct:0.##}%.")
+                    StartEntryWatch()
+                End If
+            End If
+
         Finally
-            ' Re-enable only if PM did not activate (otherwise OnPmActiveChanged handles it)
-            If Not _pm.IsActive Then btnEnter.Enabled = True
+            ' Re-enable enter button only if no active cycle/order
+            If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
+                btnEnter.Enabled = True
+            End If
         End Try
     End Function
+
 
     ' Basis samples pushed by watcher carry only value; time window enforced by queue length from cadence × window
     ' Derive max buffer length from window/cadence

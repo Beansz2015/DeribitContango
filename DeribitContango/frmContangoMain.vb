@@ -620,7 +620,7 @@ Public Class frmContangoMain
                     If _expiryWorkerCts Is Nothing OrElse _expiryWorkerCts.IsCancellationRequested Then
                         _expiryWorkerCts = New Threading.CancellationTokenSource()
                         AppendLog($"Expiry window reached for {_expiryArmedUtc:yyyy-MM-dd HH:mm:ss} UTC; starting settlement poll...")
-                        Task.Run(Function() ExpirySettlementWorkerAsync(_expiryWorkerCts.Token))
+                        Call Task.Run(Function() ExpirySettlementWorkerAsync(_expiryWorkerCts.Token))
                     End If
                 End If
             End If

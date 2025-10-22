@@ -455,12 +455,12 @@ Namespace DeribitContango
                             If shouldHedge Then _pendingFutContracts = Math.Max(0, _pendingFutContracts - contracts)
                         End SyncLock
                         If shouldHedge Then
-                            Task.Run(Async Function()
-                                         Try
-                                             Await PlaceSpotIOCForContractsAsync(contracts, px)
-                                         Catch
-                                         End Try
-                                     End Function)
+                            Call Task.Run(Async Function()
+                                              Try
+                                                  Await PlaceSpotIOCForContractsAsync(contracts, px)
+                                              Catch
+                                              End Try
+                                          End Function)
                         End If
                     End If
                 Next
@@ -477,7 +477,7 @@ Namespace DeribitContango
             Try
                 StopRequoteLoop()
                 _requoteCts = New CancellationTokenSource()
-                Task.Run(Function() RequoteLoopAsync(_requoteCts.Token))
+                Call Task.Run(Function() RequoteLoopAsync(_requoteCts.Token))
             Catch
             End Try
         End Sub
@@ -643,7 +643,7 @@ Namespace DeribitContango
                 _fillMonCts = New CancellationTokenSource()
                 _lastObservedFilledContracts = 0
                 _lastObservedOrderTradeContracts = 0
-                Task.Run(Function() FillMonitorLoopAsync(_fillMonCts.Token))
+                Call Task.Run(Function() FillMonitorLoopAsync(_fillMonCts.Token))
             Catch
             End Try
         End Sub
@@ -1087,7 +1087,7 @@ Namespace DeribitContango
                 StopCloseRequoteLoop()
                 If String.IsNullOrEmpty(_lastCloseOrderId) Then Return
                 _closeRequoteCts = New CancellationTokenSource()
-                Task.Run(Function() CloseRequoteLoopAsync(_closeRequoteCts.Token))
+                Call Task.Run(Function() CloseRequoteLoopAsync(_closeRequoteCts.Token))
             Catch
             End Try
         End Sub
@@ -1224,7 +1224,7 @@ Namespace DeribitContango
             Try
                 StopCloseMonitorLoop()
                 _closeMonCts = New Threading.CancellationTokenSource()
-                Task.Run(Function() CloseMonitorLoopAsync(_closeMonCts.Token))
+                Call Task.Run(Function() CloseMonitorLoopAsync(_closeMonCts.Token))
                 RaiseEvent Info("CloseMonitor: started (watching futures to unwind spot).")
             Catch
             End Try

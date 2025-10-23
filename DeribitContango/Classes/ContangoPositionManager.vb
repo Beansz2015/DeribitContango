@@ -74,6 +74,11 @@ Namespace DeribitContango
             SetActive(active)
         End Sub
 
+        ' Initialize spot hedge amount during startup position redetection
+        Public Sub InitializeSpotHedgeAmount(spotBtcAmount As Decimal)
+            _openSpotHedgeBtc = spotBtcAmount
+        End Sub
+
 
         ' New: probe if an entry order is live
         Public ReadOnly Property HasLiveEntryOrder As Boolean

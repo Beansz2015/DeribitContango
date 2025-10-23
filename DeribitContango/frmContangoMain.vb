@@ -144,15 +144,19 @@ Public Class frmContangoMain
 
                 _pm.SetActiveFromExternal(True)
 
+                ' Initialize the spot hedge amount for close monitor
+                _pm.InitializeSpotHedgeAmount(Math.Max(spotBtc, awf))
+
                 Await _api.SubscribePublicAsync({
-                $"ticker.{_pm.FuturesInstrument}.100ms",
-                $"book.{_pm.FuturesInstrument}.100ms"
-            })
+    $"ticker.{_pm.FuturesInstrument}.100ms",
+    $"book.{_pm.FuturesInstrument}.100ms"
+})
 
                 UpdateExpiryLabels()
                 ArmNextExpiry()
 
                 AppendLog($"Redetected active basis: futures={_pm.FuturesInstrument} (contracts={signedContracts}), spot={Math.Max(spotBtc, awf):0.00000000} BTC; expiry automation armed.")
+
 
                 btnEnter.Enabled = False
                 _entryWatchRunning = False

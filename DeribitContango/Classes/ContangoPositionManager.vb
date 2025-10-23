@@ -139,6 +139,23 @@ Namespace DeribitContango
             AddHandler _api.TradeUpdate, AddressOf OnTradeUpdate
         End Sub
 
+        ' Expose current position details for UI display
+        Public ReadOnly Property CurrentSpotHedgeAmount As Decimal
+            Get
+                Return _openSpotHedgeBtc
+            End Get
+        End Property
+
+        Public ReadOnly Property CurrentFuturesUsdNotional As Decimal
+            Get
+                If _pendingFutContracts > 0 Then
+                    Return -(_pendingFutContracts * 10D) ' Negative for short position
+                End If
+                Return 0D
+            End Get
+        End Property
+
+
         ' ============ Instrument discovery/specs ============
 
         Public Async Function DiscoverNearestWeeklyAsync(Optional strictNextBeyond As DateTime? = Nothing) As Task

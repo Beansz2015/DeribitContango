@@ -83,6 +83,15 @@ Partial Class frmContangoMain
         Label21 = New Label()
         grpLog = New GroupBox()
         txtLog = New RichTextBox()
+        grpPosition = New GroupBox()
+        lblPositionSpotBTC = New Label()
+        lblPositionSpotUSD = New Label()
+        lblPositionFuturesUSD = New Label()
+        lblPositionInstrument = New Label()
+        lblSpotBTCValue = New Label()
+        lblSpotUSDValue = New Label()
+        lblFuturesUSDValue = New Label()
+        lblInstrumentValue = New Label()
         grpConnection.SuspendLayout()
         grpMarket.SuspendLayout()
         grpTime.SuspendLayout()
@@ -94,6 +103,7 @@ Partial Class frmContangoMain
         CType(numSlippageBps, ComponentModel.ISupportInitialize).BeginInit()
         CType(numThreshold, ComponentModel.ISupportInitialize).BeginInit()
         grpLog.SuspendLayout()
+        grpPosition.SuspendLayout()
         SuspendLayout()
         ' 
         ' grpConnection
@@ -408,7 +418,7 @@ Partial Class frmContangoMain
         grpTime.Controls.Add(Label18)
         grpTime.Controls.Add(Label17)
         grpTime.ForeColor = Color.DarkGreen
-        grpTime.Location = New Point(17, 373)
+        grpTime.Location = New Point(17, 533)
         grpTime.Margin = New Padding(4, 5, 4, 5)
         grpTime.Name = "grpTime"
         grpTime.Padding = New Padding(4, 5, 4, 5)
@@ -523,7 +533,7 @@ Partial Class frmContangoMain
         grpEntry.Controls.Add(radUSD)
         grpEntry.Controls.Add(Label21)
         grpEntry.ForeColor = Color.MidnightBlue
-        grpEntry.Location = New Point(17, 537)
+        grpEntry.Location = New Point(17, 686)
         grpEntry.Margin = New Padding(4, 5, 4, 5)
         grpEntry.Name = "grpEntry"
         grpEntry.Padding = New Padding(4, 5, 4, 5)
@@ -591,7 +601,7 @@ Partial Class frmContangoMain
         ' lblMinUSD
         ' 
         lblMinUSD.AutoSize = True
-        lblMinUSD.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblMinUSD.Font = New Font("Segoe UI", 8.0F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
         lblMinUSD.Location = New Point(144, 139)
         lblMinUSD.Margin = New Padding(4, 0, 4, 0)
         lblMinUSD.Name = "lblMinUSD"
@@ -775,7 +785,7 @@ Partial Class frmContangoMain
         grpLog.BackColor = Color.White
         grpLog.Controls.Add(txtLog)
         grpLog.ForeColor = Color.Black
-        grpLog.Location = New Point(17, 780)
+        grpLog.Location = New Point(17, 920)
         grpLog.Margin = New Padding(4, 5, 4, 5)
         grpLog.Name = "grpLog"
         grpLog.Padding = New Padding(4, 5, 4, 5)
@@ -795,20 +805,120 @@ Partial Class frmContangoMain
         txtLog.TabIndex = 0
         txtLog.Text = ""
         ' 
+        ' grpPosition
+        ' 
+        grpPosition.BackColor = Color.FromArgb(CByte(255), CByte(248), CByte(220))
+        grpPosition.Controls.Add(lblPositionSpotBTC)
+        grpPosition.Controls.Add(lblPositionSpotUSD)
+        grpPosition.Controls.Add(lblPositionFuturesUSD)
+        grpPosition.Controls.Add(lblPositionInstrument)
+        grpPosition.Controls.Add(lblSpotBTCValue)
+        grpPosition.Controls.Add(lblSpotUSDValue)
+        grpPosition.Controls.Add(lblFuturesUSDValue)
+        grpPosition.Controls.Add(lblInstrumentValue)
+        grpPosition.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        grpPosition.Location = New Point(12, 371)
+        grpPosition.Name = "grpPosition"
+        grpPosition.Size = New Size(1114, 154)
+        grpPosition.TabIndex = 50
+        grpPosition.TabStop = False
+        grpPosition.Text = "Position Details"
+        ' 
+        ' lblPositionSpotBTC
+        ' 
+        lblPositionSpotBTC.AutoSize = True
+        lblPositionSpotBTC.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblPositionSpotBTC.Location = New Point(10, 20)
+        lblPositionSpotBTC.Name = "lblPositionSpotBTC"
+        lblPositionSpotBTC.Size = New Size(87, 20)
+        lblPositionSpotBTC.TabIndex = 51
+        lblPositionSpotBTC.Text = "Spot BTC:"
+        ' 
+        ' lblPositionSpotUSD
+        ' 
+        lblPositionSpotUSD.AutoSize = True
+        lblPositionSpotUSD.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblPositionSpotUSD.Location = New Point(10, 40)
+        lblPositionSpotUSD.Name = "lblPositionSpotUSD"
+        lblPositionSpotUSD.Size = New Size(89, 20)
+        lblPositionSpotUSD.TabIndex = 53
+        lblPositionSpotUSD.Text = "Spot USD:"
+        ' 
+        ' lblPositionFuturesUSD
+        ' 
+        lblPositionFuturesUSD.AutoSize = True
+        lblPositionFuturesUSD.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblPositionFuturesUSD.Location = New Point(10, 60)
+        lblPositionFuturesUSD.Name = "lblPositionFuturesUSD"
+        lblPositionFuturesUSD.Size = New Size(112, 20)
+        lblPositionFuturesUSD.TabIndex = 55
+        lblPositionFuturesUSD.Text = "Futures USD:"
+        ' 
+        ' lblPositionInstrument
+        ' 
+        lblPositionInstrument.AutoSize = True
+        lblPositionInstrument.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblPositionInstrument.Location = New Point(10, 80)
+        lblPositionInstrument.Name = "lblPositionInstrument"
+        lblPositionInstrument.Size = New Size(93, 20)
+        lblPositionInstrument.TabIndex = 57
+        lblPositionInstrument.Text = "Instrument:"
+        ' 
+        ' lblSpotBTCValue
+        ' 
+        lblSpotBTCValue.AutoSize = True
+        lblSpotBTCValue.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblSpotBTCValue.Location = New Point(120, 20)
+        lblSpotBTCValue.Name = "lblSpotBTCValue"
+        lblSpotBTCValue.Size = New Size(16, 20)
+        lblSpotBTCValue.TabIndex = 52
+        lblSpotBTCValue.Text = "-"
+        ' 
+        ' lblSpotUSDValue
+        ' 
+        lblSpotUSDValue.AutoSize = True
+        lblSpotUSDValue.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblSpotUSDValue.Location = New Point(120, 40)
+        lblSpotUSDValue.Name = "lblSpotUSDValue"
+        lblSpotUSDValue.Size = New Size(16, 20)
+        lblSpotUSDValue.TabIndex = 54
+        lblSpotUSDValue.Text = "-"
+        ' 
+        ' lblFuturesUSDValue
+        ' 
+        lblFuturesUSDValue.AutoSize = True
+        lblFuturesUSDValue.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblFuturesUSDValue.Location = New Point(120, 60)
+        lblFuturesUSDValue.Name = "lblFuturesUSDValue"
+        lblFuturesUSDValue.Size = New Size(16, 20)
+        lblFuturesUSDValue.TabIndex = 56
+        lblFuturesUSDValue.Text = "-"
+        ' 
+        ' lblInstrumentValue
+        ' 
+        lblInstrumentValue.AutoSize = True
+        lblInstrumentValue.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblInstrumentValue.Location = New Point(120, 80)
+        lblInstrumentValue.Name = "lblInstrumentValue"
+        lblInstrumentValue.Size = New Size(16, 20)
+        lblInstrumentValue.TabIndex = 58
+        lblInstrumentValue.Text = "-"
+        ' 
         ' frmContangoMain
         ' 
-        AutoScaleDimensions = New SizeF(10F, 25F)
+        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.WhiteSmoke
-        ClientSize = New Size(1143, 1140)
+        ClientSize = New Size(1143, 1274)
         Controls.Add(grpLog)
         Controls.Add(grpEntry)
         Controls.Add(grpTime)
         Controls.Add(grpMarket)
         Controls.Add(grpConnection)
+        Controls.Add(grpPosition)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V2.1e"
+        Text = "Deribit Contango Basis Trader - V2.2"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -824,6 +934,8 @@ Partial Class frmContangoMain
         CType(numSlippageBps, ComponentModel.ISupportInitialize).EndInit()
         CType(numThreshold, ComponentModel.ISupportInitialize).EndInit()
         grpLog.ResumeLayout(False)
+        grpPosition.ResumeLayout(False)
+        grpPosition.PerformLayout()
         ResumeLayout(False)
 
     End Sub
@@ -889,4 +1001,14 @@ Partial Class frmContangoMain
     Friend WithEvents lblMedianBasis As Label
     Friend WithEvents Label11 As Label
     Friend WithEvents chkAutoEnterAfterRoll As CheckBox
+    Friend WithEvents grpPosition As System.Windows.Forms.GroupBox
+    Friend WithEvents lblPositionSpotBTC As System.Windows.Forms.Label
+    Friend WithEvents lblPositionSpotUSD As System.Windows.Forms.Label
+    Friend WithEvents lblPositionFuturesUSD As System.Windows.Forms.Label
+    Friend WithEvents lblPositionInstrument As System.Windows.Forms.Label
+    Friend WithEvents lblSpotBTCValue As System.Windows.Forms.Label
+    Friend WithEvents lblSpotUSDValue As System.Windows.Forms.Label
+    Friend WithEvents lblFuturesUSDValue As System.Windows.Forms.Label
+    Friend WithEvents lblInstrumentValue As System.Windows.Forms.Label
+
 End Class

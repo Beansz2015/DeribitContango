@@ -629,10 +629,38 @@ Public Class frmContangoMain
                 End If
             End If
 
+            UpdatePositionDisplay()
+
         Catch
         End Try
     End Sub
 
+    Private Sub UpdatePositionDisplay()
+        Try
+            If _pm.IsActive Then
+                ' Show spot BTC amount
+                lblSpotBTCValue.Text = _pm.CurrentSpotHedgeAmount.ToString("0.00000000")
+
+                ' Show spot USD value
+                Dim spotUsdValue As Decimal = _pm.CurrentSpotHedgeAmount * _mon.IndexPriceUsd
+                lblSpotUSDValue.Text = spotUsdValue.ToString("0.00")
+
+                ' Show futures USD value (always negative for short position)
+                lblFuturesUSDValue.Text = _pm.CurrentFuturesUsdNotional.ToString("0.00")
+
+                ' Show instrument name
+                lblInstrumentValue.Text = _pm.FuturesInstrument
+            Else
+                ' Clear display when no active position
+                lblSpotBTCValue.Text = "-"
+                lblSpotUSDValue.Text = "-"
+                lblFuturesUSDValue.Text = "-"
+                lblInstrumentValue.Text = "-"
+            End If
+        Catch
+            ' Swallow display errors
+        End Try
+    End Sub
 
 
     Private Async Function ExpirySettlementWorkerAsync(ct As Threading.CancellationToken) As Task

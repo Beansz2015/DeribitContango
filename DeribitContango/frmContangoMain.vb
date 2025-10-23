@@ -917,7 +917,12 @@ Public Class frmContangoMain
             _pm.MaxSlippageBps = numSlippageBps.Value
             _pm.UseUsdInput = radUSD.Checked
 
-            btnEnter.Enabled = False
+            ' Thread-safe UI update
+            If InvokeRequired Then
+                BeginInvoke(Sub() btnEnter.Enabled = False)
+            Else
+                btnEnter.Enabled = False
+            End If
 
             ' Attempt to enter; PM will validate instantaneous BasisMid vs EntryThreshold
             Await _pm.EnterBasisAsync(_mon.IndexPriceUsd, _mon.WeeklyFutureBestBid, _mon.SpotBestAsk)
@@ -942,12 +947,21 @@ Public Class frmContangoMain
             End If
 
         Finally
-            ' Re-enable enter button only if no active cycle/order
-            If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
-                btnEnter.Enabled = True
+            ' Thread-safe UI update - re-enable enter button only if no active cycle/order
+            If InvokeRequired Then
+                BeginInvoke(Sub()
+                                If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
+                                    btnEnter.Enabled = True
+                                End If
+                            End Sub)
+            Else
+                If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
+                    btnEnter.Enabled = True
+                End If
             End If
         End Try
     End Function
+
 
 
     ' Basis samples pushed by watcher carry only value; time window enforced by queue length from cadence × window

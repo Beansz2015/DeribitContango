@@ -69,6 +69,9 @@ Namespace DeribitContango
         ' Cancel+repost grace window to ignore transient "cancelled" states
         Private _repostGuardUntilUtc As DateTime = Date.MinValue
 
+        ' Track actual futures position size for display
+        Private _actualFuturesUsdNotional As Decimal = 0D
+
         ' Public way to set the active-cycle flag during startup redetection.
         Public Sub SetActiveFromExternal(active As Boolean)
             SetActive(active)
@@ -77,6 +80,13 @@ Namespace DeribitContango
         ' Initialize spot hedge amount during startup position redetection
         Public Sub InitializeSpotHedgeAmount(spotBtcAmount As Decimal)
             _openSpotHedgeBtc = spotBtcAmount
+            ' Also initialize actual futures position based on startup detection
+            ' This will be set properly by the calling code
+        End Sub
+
+        ' Initialize futures position size during startup position redetection
+        Public Sub InitializeFuturesPosition(contracts As Integer)
+            _actualFuturesUsdNotional = -(Math.Abs(contracts) * 10D) ' Negative for short position
         End Sub
 
 
@@ -146,14 +156,21 @@ Namespace DeribitContango
             End Get
         End Property
 
+
+
         Public ReadOnly Property CurrentFuturesUsdNotional As Decimal
             Get
+                ' If we have pending contracts (order active), show them
                 If _pendingFutContracts > 0 Then
                     Return -(_pendingFutContracts * 10D) ' Negative for short position
                 End If
-                Return 0D
+
+                ' Otherwise, try to get actual position size from last known state
+                ' This requires tracking the actual position size
+                Return _actualFuturesUsdNotional
             End Get
         End Property
+
 
 
         ' ============ Instrument discovery/specs ============
@@ -412,9 +429,12 @@ Namespace DeribitContango
                         _hedgeWatchTsUtc = Date.MinValue
                     End SyncLock
                     _lastFutOrderId = Nothing
+                    ' Reset actual position tracking
+                    _actualFuturesUsdNotional = 0D
                     SetActive(False)
                     RaiseEvent Info($"Futures order {orderId} {state}; position lifecycle closed.")
                 End If
+
             End If
 
 
@@ -477,6 +497,9 @@ Namespace DeribitContango
                             If shouldHedge Then _pendingFutContracts = Math.Max(0, _pendingFutContracts - contracts)
                         End SyncLock
                         If shouldHedge Then
+                            ' Update actual position size for display
+                            _actualFuturesUsdNotional -= (contracts * 10D) ' Negative for short position
+
                             Call Task.Run(Async Function()
                                               Try
                                                   Await PlaceSpotIOCForContractsAsync(contracts, px)
@@ -484,6 +507,7 @@ Namespace DeribitContango
                                               End Try
                                           End Function)
                         End If
+
                     End If
                 Next
             Catch

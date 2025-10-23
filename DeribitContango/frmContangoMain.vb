@@ -146,6 +146,8 @@ Public Class frmContangoMain
 
                 ' Initialize the spot hedge amount for close monitor
                 _pm.InitializeSpotHedgeAmount(Math.Max(spotBtc, awf))
+                _pm.InitializeFuturesPosition(signedContracts)
+
 
                 Await _api.SubscribePublicAsync({
     $"ticker.{_pm.FuturesInstrument}.100ms",

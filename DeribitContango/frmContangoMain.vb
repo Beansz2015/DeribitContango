@@ -712,8 +712,9 @@ Public Class frmContangoMain
                 Await _pm.DiscoverNearestWeeklyAsync() ' no cutoff -> nearest non-expired is next weekly now
                 AppendLog($"Auto-discovered weekly after expiry: {_pm.FuturesInstrument}")
 
-                ' Clear position data since old position settled
+                ' Clear position data and deactivate PM since old position settled
                 _pm.ClearPositionData()
+                _pm.SetActiveFromExternal(False)
 
                 ' Subscribe to market streams for the new weekly and refresh specs/labels
                 Await _api.SubscribePublicAsync({
@@ -732,18 +733,26 @@ Public Class frmContangoMain
             End Try
 
 
+
             ' 3) Start the basis watch (same flow as clicking Enter)
             If InvokeRequired Then
                 BeginInvoke(Sub()
                                 If Not _pm.IsActive Then
+                                    AppendLog("Post-expiry auto-entry: triggering basis watch for new weekly.")
                                     btnEnter.PerformClick()
+                                Else
+                                    AppendLog("Post-expiry auto-entry blocked: PM still shows active (settlement detection may be delayed).")
                                 End If
                             End Sub)
             Else
                 If Not _pm.IsActive Then
+                    AppendLog("Post-expiry auto-entry: triggering basis watch for new weekly.")
                     btnEnter.PerformClick()
+                Else
+                    AppendLog("Post-expiry auto-entry blocked: PM still shows active (settlement detection may be delayed).")
                 End If
             End If
+
 
         Catch
             ' swallow worker exception; will re-arm below

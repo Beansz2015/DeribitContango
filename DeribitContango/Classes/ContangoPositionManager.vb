@@ -1176,21 +1176,36 @@ Namespace DeribitContango
                     ' Pull current order state
                     Dim cur = Await _api.GetOrderStateAsync(_lastCloseOrderId)
                     If cur Is Nothing Then
+                        RaiseEvent Info("Close re-quote: unable to fetch order state; retrying...")
                         doDelay = True
                     Else
                         Dim ordState As String = cur.Value(Of String)("order_state")
                         If String.IsNullOrEmpty(ordState) Then ordState = cur.Value(Of String)("state")
                         If ordState = "filled" OrElse ordState = "cancelled" OrElse ordState = "rejected" Then
+                            RaiseEvent Info($"Close re-quote: order {ordState}; stopping requote loop.")
                             Exit While
                         End If
 
-                        ' Compute current target ask
+                        ' Compute current target ask with validation
                         Dim bestAsk = If(_monitor.WeeklyFutureBestAsk > 0D, _monitor.WeeklyFutureBestAsk, _monitor.WeeklyFutureMark)
                         If bestAsk <= 0D Then
+                            ' Throttled logging for missing market data
+                            Dim nowUtc = DateTime.UtcNow
+                            If (nowUtc - _lastCloseRequoteLogUtc).TotalSeconds > 10 Then
+                                RaiseEvent Info("Close re-quote: no market data available; retrying...")
+                                _lastCloseRequoteLogUtc = nowUtc
+                            End If
                             doDelay = True
                         Else
                             Dim targetPx = RoundToTick(bestAsk, _futTick)
                             Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+                            ' Validate target price before attempting requote
+                            If targetPx <= 0D Then
+                                RaiseEvent Info($"Close re-quote: invalid target price {targetPx}; skipping...")
+                                doDelay = True
+                                Continue While
+                            End If
 
                             ' Tick delta vs current resting
                             Dim tickSteps As Integer = 0
@@ -1198,75 +1213,159 @@ Namespace DeribitContango
                                 tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
                             End If
 
-                            ' Use public min guard and a local cap for max ticks
-                            Dim maxTicks As Integer = 3
-                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= maxTicks Then
+                            ' Only log price analysis every 10 seconds to reduce spam
+                            Dim nowUtc = DateTime.UtcNow
+                            Dim shouldLog = (nowUtc - _lastCloseRequoteLogUtc).TotalSeconds > 10
+                            If shouldLog Then
+                                RaiseEvent Info($"Close re-quote: current={curPx:0.00}, target={targetPx:0.00}, delta={tickSteps} ticks")
+                                _lastCloseRequoteLogUtc = nowUtc
+                            End If
+                            ' Tiered requoting strategy based on market movement
+                            Dim canRequote As Boolean = False
+                            Dim requoteStrategy As String = ""
+
+                            If Math.Abs(tickSteps) < RequoteMinTicks Then
+                                ' Too small - no action
+                                canRequote = False
+                            ElseIf Math.Abs(tickSteps) <= 3 Then
+                                ' Small movement - standard edit or repost
+                                canRequote = True
+                                requoteStrategy = "standard"
+                            ElseIf Math.Abs(tickSteps) <= 10 Then
+                                ' Medium movement - cancel+repost only (skip edit)
+                                canRequote = True
+                                requoteStrategy = "repost_only"
+                            ElseIf Math.Abs(tickSteps) <= 25 Then
+                                ' Large movement - repost with reduced frequency
+                                Dim checkTime1 = DateTime.UtcNow
+                                If (checkTime1 - _lastCloseRequoteLogUtc).TotalSeconds > 5 Then
+                                    canRequote = True
+                                    requoteStrategy = "large_move"
+                                    _lastCloseRequoteLogUtc = checkTime1 ' Update throttle timestamp
+                                Else
+                                    canRequote = False
+                                End If
+                            Else
+                                ' Extreme movement - very conservative requoting
+                                Dim checkTime2 = DateTime.UtcNow
+                                If (checkTime2 - _lastCloseRequoteLogUtc).TotalSeconds > 15 Then
+                                    canRequote = True
+                                    requoteStrategy = "extreme_move"
+                                    _lastCloseRequoteLogUtc = checkTime2 ' Update throttle timestamp
+                                Else
+                                    canRequote = False
+                                End If
+                            End If
+
+                            If canRequote Then
+
+
                                 Dim edited As Boolean = False
 
-                                ' 1) Try in-place edit first (preserve queue)
-                                Try
-                                    Dim editRes = Await _api.EditOrderAsync(_lastCloseOrderId, targetPx, Nothing, True)
-                                    edited = True
-
-                                    ' Log exchange-acknowledged price
-                                    Dim eordPx As Decimal = targetPx
+                                ' Strategy-based requoting approach
+                                If requoteStrategy = "standard" Then
+                                    ' 1) Try in-place edit first (preserve queue)
                                     Try
-                                        Dim eord = editRes?("order")?.Value(Of JObject)()
-                                        Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                                        If pxAck > 0D Then eordPx = pxAck
-                                    Catch
-                                    End Try
-                                    RaiseEvent Info($"Close re-quote (edit): price -> {eordPx:0.00}")
-                                Catch
-                                    edited = False
-                                End Try
-
-                                ' 2) If edit failed, cancel + repost
-                                If Not edited Then
-                                    Try
-                                        Await _api.CancelOrderAsync(_lastCloseOrderId)
-
-                                        ' Amount: USD notional from current order state; safe unwrap
+                                        ' For futures edit: use contracts parameter, not amount
                                         Dim amtUsdVal As Decimal = cur?.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
-                                        Dim amtUsd As Integer = CInt(Math.Round(amtUsdVal, MidpointRounding.AwayFromZero))
+                                        Dim contracts As Integer = CInt(Math.Round(amtUsdVal / 10D, MidpointRounding.AwayFromZero))
+                                        Dim editRes = Await _api.EditOrderAsync(_lastCloseOrderId, Nothing, contracts, targetPx, True)
+                                        edited = True
 
-                                        Dim repost = Await _api.PlaceOrderAsync(
-                  instrument:=FuturesInstrument,
-                  side:="buy",
-                  amount:=amtUsd,           ' USD notional
-                  price:=targetPx,
-                  orderType:="limit",
-                  tif:="good_til_cancelled",
-                  postOnly:=True,
-                  reduceOnly:=True,
-                  label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
-                )
-                                        Dim ro = repost?("order")?.Value(Of JObject)()
-                                        Dim newId = ro?.Value(Of String)("order_id")
-                                        If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId
 
-                                        ' Log exchange-acknowledged price from repost
-                                        Dim roPx As Decimal = targetPx
+                                        ' Log exchange-acknowledged price
+                                        Dim eordPx As Decimal = targetPx
                                         Try
-                                            Dim pxAck = ro?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                                            If pxAck > 0D Then roPx = pxAck
+                                            Dim eord = editRes?("order")?.Value(Of JObject)()
+                                            Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                            If pxAck > 0D Then eordPx = pxAck
                                         Catch
                                         End Try
-                                        RaiseEvent Info($"Close re-quote (repost): price -> {roPx:0.00}, id={_lastCloseOrderId}")
-                                    Catch
-                                        ' ignore; pace and retry
+                                        RaiseEvent Info($"Close re-quote (edit): price -> {eordPx:0.00}")
+                                    Catch ex As Exception
+                                        ' Check for specific error conditions
+                                        Dim errMsg = ex.Message
+                                        If errMsg.Contains("not_open_order") Then
+                                            RaiseEvent Info("Close re-quote: order already filled/closed; stopping requote loop.")
+                                            Exit While
+                                        ElseIf errMsg.Contains("positive float required") Then
+                                            RaiseEvent Info($"Close re-quote edit failed: invalid price parameter (target={targetPx})")
+                                        Else
+                                            RaiseEvent Info($"Close re-quote edit failed: {ex.Message}")
+                                        End If
+                                        edited = False
                                     End Try
+
+                                    ' 2) If edit failed or using repost-only strategy, cancel + repost
+                                    If Not edited OrElse requoteStrategy <> "standard" Then
+                                        If requoteStrategy <> "standard" Then
+                                            RaiseEvent Info($"Close re-quote: using {requoteStrategy} strategy (delta={tickSteps})")
+                                        End If
+
+                                        Try
+                                            Await _api.CancelOrderAsync(_lastCloseOrderId)
+
+                                            ' Amount: USD notional from current order state
+                                            Dim amtUsdVal As Decimal = cur?.Value(Of Decimal?)("amount").GetValueOrDefault(0D)
+                                            Dim amtUsd As Integer = CInt(Math.Round(amtUsdVal, MidpointRounding.AwayFromZero))
+
+                                            Dim repost = Await _api.PlaceOrderAsync(
+                      instrument:=FuturesInstrument,
+                      side:="buy",
+                      amount:=amtUsd,
+                      price:=targetPx,
+                      orderType:="limit",
+                      tif:="good_til_cancelled",
+                      postOnly:=True,
+                      reduceOnly:=True,
+                      label:=$"ContangoCloseRequote_{DateTime.UtcNow:HHmmss}"
+                    )
+                                            Dim ro = repost?("order")?.Value(Of JObject)()
+                                            Dim newId = ro?.Value(Of String)("order_id")
+                                            If Not String.IsNullOrEmpty(newId) Then _lastCloseOrderId = newId
+
+                                            ' Log exchange-acknowledged price from repost
+                                            Dim roPx As Decimal = targetPx
+                                            Try
+                                                Dim pxAck = ro?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                                If pxAck > 0D Then roPx = pxAck
+                                            Catch
+                                            End Try
+                                            RaiseEvent Info($"Close re-quote (repost): price -> {roPx:0.00}, id={_lastCloseOrderId}")
+                                        Catch ex As Exception
+                                            If ex.Message.Contains("not_open_order") Then
+                                                RaiseEvent Info("Close re-quote: original order filled during repost; stopping requote loop.")
+                                                Exit While
+                                            Else
+                                                RaiseEvent Info($"Close re-quote repost failed: {ex.Message}")
+                                                doDelay = True
+                                            End If
+                                        End Try
+                                    End If
+
+                                Else
+                                    ' Throttled logging for no action cases
+                                    Dim checkTime3 = DateTime.UtcNow
+                                    If (checkTime3 - _lastCloseRequoteLogUtc).TotalSeconds > 10 Then
+                                        If Math.Abs(tickSteps) < RequoteMinTicks Then
+                                            RaiseEvent Info($"Close re-quote: delta={tickSteps} < min_ticks={RequoteMinTicks}; no action needed")
+                                        Else
+                                            RaiseEvent Info($"Close re-quote: delta={tickSteps} throttled; waiting for next window")
+                                        End If
+                                        _lastCloseRequoteLogUtc = checkTime3
+                                    End If
+                                    doDelay = True
                                 End If
 
-                            Else
-                                doDelay = True
+
                             End If
                         End If
                     End If
 
                 Catch ex As TaskCanceledException
                     Exit While
-                Catch
+                Catch ex As Exception
+                    RaiseEvent Info($"Close re-quote error: {ex.Message}")
                     doDelay = True
                 End Try
 
@@ -1282,7 +1381,8 @@ Namespace DeribitContango
 
 
 
-
+        ' Close-side requote logging throttle
+        Private _lastCloseRequoteLogUtc As DateTime = DateTime.MinValue
 
         'Close monitor : when futures is flat and spot hedge exists, unwind spot
 

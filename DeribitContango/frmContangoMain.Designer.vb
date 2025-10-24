@@ -679,6 +679,7 @@ Partial Class frmContangoMain
         numThreshold.Location = New Point(762, 37)
         numThreshold.Margin = New Padding(4, 5, 4, 5)
         numThreshold.Maximum = New Decimal(New Integer() {1, 0, 0, 0})
+        numThreshold.Minimum = New Decimal(New Integer() {1, 0, 0, Integer.MinValue})
         numThreshold.Name = "numThreshold"
         numThreshold.Size = New Size(97, 31)
         numThreshold.TabIndex = 9
@@ -918,7 +919,7 @@ Partial Class frmContangoMain
         Controls.Add(grpPosition)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V2.2e"
+        Text = "Deribit Contango Basis Trader - V2.2f"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)

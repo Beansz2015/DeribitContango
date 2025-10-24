@@ -85,9 +85,13 @@ Namespace DeribitContango
         End Sub
 
         ' Initialize futures position size during startup position redetection
+        ' Initialize futures position size during startup position redetection
         Public Sub InitializeFuturesPosition(contracts As Integer)
-            _actualFuturesUsdNotional = -(Math.Abs(contracts) * 10D) ' Negative for short position
+            ' contracts from Deribit is signed (-20 for short position)
+            ' For display, we want the USD notional value
+            _actualFuturesUsdNotional = contracts ' Keep as-is since it's already the correct value (-20)
         End Sub
+
 
 
         ' New: probe if an entry order is live
@@ -171,6 +175,11 @@ Namespace DeribitContango
             End Get
         End Property
 
+        ' Clear position display data when no actual position exists
+        Public Sub ClearPositionData()
+            _openSpotHedgeBtc = 0D
+            _actualFuturesUsdNotional = 0D
+        End Sub
 
 
         ' ============ Instrument discovery/specs ============
@@ -790,6 +799,8 @@ Namespace DeribitContango
                             SyncLock _lock
                                 _pendingFutContracts = Math.Max(0, _pendingFutContracts - sliceContracts)
                             End SyncLock
+                            ' Update actual position size for display
+                            _actualFuturesUsdNotional -= (sliceContracts * 10D) ' Negative for short position
                             Await PlaceSpotIOCForContractsAsync(sliceContracts, sliceVwap)
                             _lastObservedOrderTradeContracts += sliceContracts
 
@@ -824,9 +835,12 @@ Namespace DeribitContango
                                 SyncLock _lock
                                     _pendingFutContracts = Math.Max(0, _pendingFutContracts - deltaInc)
                                 End SyncLock
+                                ' Update actual position size for display
+                                _actualFuturesUsdNotional -= (deltaInc * 10D) ' Negative for short position
                                 Await PlaceSpotIOCForContractsAsync(deltaInc, avgPxOrder)
                                 _lastObservedFilledContracts = filledNow
                             End If
+
                         End If
 
                         ' 5) Stop conditions on terminal order state
@@ -1105,24 +1119,29 @@ Namespace DeribitContango
                     StartCloseRequoteLoop()
                     StartCloseMonitorLoop()
 
+                    RaiseEvent Info("CloseAll requested; awaiting reduce_only fills.")
+
+                    ' Only clean up entry-side state if there was actually a position to close
+                    StopRequoteLoop()
+                    StopFillMonitorLoop()
+                    SyncLock _lock
+                        _pendingFutContracts = 0
+                        _hedgeWatchTsUtc = Date.MinValue
+                    End SyncLock
+                    _lastFutOrderId = Nothing
+                    SetActive(False)
+
                 Else
                     RaiseEvent Info("CloseAll: no short futures position detected.")
+                    ' Clear position data when no position exists
+                    ClearPositionData()
                 End If
 
             Catch ex As Exception
                 RaiseEvent Info("CloseAll error: " & ex.Message)
             End Try
-
-            ' Keep entry-side loops off and UI released while the close runs
-            StopRequoteLoop()
-            StopFillMonitorLoop()
-            SyncLock _lock
-                _pendingFutContracts = 0
-                _hedgeWatchTsUtc = Date.MinValue
-            End SyncLock
-            _lastFutOrderId = Nothing
-            SetActive(False)
         End Function
+
 
 
 

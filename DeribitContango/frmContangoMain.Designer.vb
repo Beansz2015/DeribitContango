@@ -601,7 +601,7 @@ Partial Class frmContangoMain
         ' lblMinUSD
         ' 
         lblMinUSD.AutoSize = True
-        lblMinUSD.Font = New Font("Segoe UI", 8.0F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblMinUSD.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
         lblMinUSD.Location = New Point(144, 139)
         lblMinUSD.Margin = New Padding(4, 0, 4, 0)
         lblMinUSD.Name = "lblMinUSD"
@@ -906,7 +906,7 @@ Partial Class frmContangoMain
         ' 
         ' frmContangoMain
         ' 
-        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
+        AutoScaleDimensions = New SizeF(10F, 25F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.WhiteSmoke
         ClientSize = New Size(1143, 1274)
@@ -918,7 +918,7 @@ Partial Class frmContangoMain
         Controls.Add(grpPosition)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V2.2a"
+        Text = "Deribit Contango Basis Trader - V2.2b"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)

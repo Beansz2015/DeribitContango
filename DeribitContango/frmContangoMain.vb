@@ -191,7 +191,7 @@ Public Class frmContangoMain
         txtAmount.Enabled = Not active
         radUSD.Enabled = Not active
         radBTC.Enabled = Not active
-        numThreshold.Enabled = Not active
+        'numThreshold.Enabled = Not active
         numSlippageBps.Enabled = Not active
         numRequoteTicks.Enabled = Not active
         numRequoteMs.Enabled = Not active
@@ -639,7 +639,8 @@ Public Class frmContangoMain
 
     Private Sub UpdatePositionDisplay()
         Try
-            If _pm.IsActive Then
+            ' Show position details if PM is active OR if there's an actual position
+            If _pm.IsActive OrElse _pm.CurrentFuturesUsdNotional <> 0D OrElse _pm.CurrentSpotHedgeAmount > 0D Then
                 ' Show spot BTC amount
                 lblSpotBTCValue.Text = _pm.CurrentSpotHedgeAmount.ToString("0.00000000")
 
@@ -647,7 +648,7 @@ Public Class frmContangoMain
                 Dim spotUsdValue As Decimal = _pm.CurrentSpotHedgeAmount * _mon.IndexPriceUsd
                 lblSpotUSDValue.Text = spotUsdValue.ToString("0.00")
 
-                ' Show futures USD value (always negative for short position)
+                ' Show futures USD value
                 lblFuturesUSDValue.Text = _pm.CurrentFuturesUsdNotional.ToString("0.00")
 
                 ' Show instrument name
@@ -663,6 +664,7 @@ Public Class frmContangoMain
             ' Swallow display errors
         End Try
     End Sub
+
 
 
     Private Async Function ExpirySettlementWorkerAsync(ct As Threading.CancellationToken) As Task
@@ -709,11 +711,15 @@ Public Class frmContangoMain
             Try
                 Await _pm.DiscoverNearestWeeklyAsync() ' no cutoff -> nearest non-expired is next weekly now
                 AppendLog($"Auto-discovered weekly after expiry: {_pm.FuturesInstrument}")
+
+                ' Clear position data since old position settled
+                _pm.ClearPositionData()
+
                 ' Subscribe to market streams for the new weekly and refresh specs/labels
                 Await _api.SubscribePublicAsync({
         $"ticker.{_pm.FuturesInstrument}.100ms",
         $"book.{_pm.FuturesInstrument}.100ms"
-      })
+    })
                 Await _pm.RefreshInstrumentSpecsAsync()
                 If InvokeRequired Then
                     BeginInvoke(Sub() UpdateExpiryLabels())
@@ -724,6 +730,7 @@ Public Class frmContangoMain
                 AppendLog("Auto-discover error post-expiry: " & ex.Message)
                 ' Even on discover failure, re-arm to avoid getting stuck
             End Try
+
 
             ' 3) Start the basis watch (same flow as clicking Enter)
             If InvokeRequired Then

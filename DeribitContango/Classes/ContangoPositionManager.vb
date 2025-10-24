@@ -549,6 +549,9 @@ Namespace DeribitContango
         Private _entryLargeMoveLastUtc As DateTime = DateTime.MinValue
         Private _entryExtremeMoveLastUtc As DateTime = DateTime.MinValue
 
+        ' Prevent same-price requotes
+        Private _lastRequotePrice As Decimal = 0D
+
 
         Private Async Function RequoteLoopAsync(ct As Threading.CancellationToken) As Task
             While Not ct.IsCancellationRequested
@@ -574,6 +577,12 @@ Namespace DeribitContango
                         Else
                             Dim targetPx = RoundToTick(bestBid, _futTick)
                             Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+
+                            ' Skip if target price hasn't changed meaningfully from last requote
+                            If Math.Abs(targetPx - _lastRequotePrice) < _futTick Then
+                                doDelay = True
+                                Continue While
+                            End If
 
                             ' Tick delta vs. current resting
                             Dim tickSteps As Integer = 0
@@ -632,6 +641,8 @@ Namespace DeribitContango
                                         Catch
                                         End Try
                                         RaiseEvent Info($"Re-quote edit: price -> {eordPx:0.00}")
+                                        _lastRequotePrice = eordPx
+
                                     Catch
                                         edited = False
                                     End Try
@@ -679,6 +690,8 @@ Namespace DeribitContango
                                         End Try
 
                                         RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
+                                        _lastRequotePrice = roPx
+
                                     Catch
                                         ' ignore; pace and retry
                                     Finally
@@ -1206,6 +1219,8 @@ Namespace DeribitContango
                 StopCloseRequoteLoop()
                 If String.IsNullOrEmpty(_lastCloseOrderId) Then Return
                 _closeRequoteCts = New CancellationTokenSource()
+                _lastCloseRequotePrice = 0D ' Reset price tracking for new close order
+
                 Call Task.Run(Function() CloseRequoteLoopAsync(_closeRequoteCts.Token))
             Catch
             End Try
@@ -1251,6 +1266,12 @@ Namespace DeribitContango
                             Dim targetPx = RoundToTick(bestAsk, _futTick)
                             Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
+                            ' Skip if target price hasn't changed meaningfully from last requote
+                            If Math.Abs(targetPx - _lastCloseRequotePrice) < _futTick Then
+                                doDelay = True
+                                Continue While
+                            End If
+
                             ' Validate target price before attempting requote
                             If targetPx <= 0D Then
                                 RaiseEvent Info($"Close re-quote: invalid target price {targetPx}; skipping...")
@@ -1286,23 +1307,23 @@ Namespace DeribitContango
                                 ' Medium movement - cancel+repost only (skip edit)
                                 canRequote = True
                                 requoteStrategy = "repost_only"
-                            ElseIf Math.Abs(tickSteps) <= 25 Then
-                                ' Large movement - repost with reduced frequency
+                            ElseIf Math.Abs(tickSteps) <= 50 Then
+                                ' Large movement - more frequent requoting for closes
                                 Dim checkTime1 = DateTime.UtcNow
-                                If (checkTime1 - _lastCloseRequoteLogUtc).TotalSeconds > 5 Then
+                                If (checkTime1 - _lastCloseRequoteLogUtc).TotalSeconds > 2 Then
                                     canRequote = True
                                     requoteStrategy = "large_move"
-                                    _lastCloseRequoteLogUtc = checkTime1 ' Update throttle timestamp
+                                    _lastCloseRequoteLogUtc = checkTime1
                                 Else
                                     canRequote = False
                                 End If
                             Else
-                                ' Extreme movement - very conservative requoting
+                                ' Extreme movement - still allow requoting but less frequent
                                 Dim checkTime2 = DateTime.UtcNow
-                                If (checkTime2 - _lastCloseRequoteLogUtc).TotalSeconds > 15 Then
+                                If (checkTime2 - _lastCloseRequoteLogUtc).TotalSeconds > 5 Then
                                     canRequote = True
                                     requoteStrategy = "extreme_move"
-                                    _lastCloseRequoteLogUtc = checkTime2 ' Update throttle timestamp
+                                    _lastCloseRequoteLogUtc = checkTime2
                                 Else
                                     canRequote = False
                                 End If
@@ -1333,6 +1354,8 @@ Namespace DeribitContango
                                         Catch
                                         End Try
                                         RaiseEvent Info($"Close re-quote (edit): price -> {eordPx:0.00}")
+                                        _lastCloseRequotePrice = eordPx
+
                                     Catch ex As Exception
                                         ' Check for specific error conditions
                                         Dim errMsg = ex.Message
@@ -1383,6 +1406,8 @@ Namespace DeribitContango
                                             Catch
                                             End Try
                                             RaiseEvent Info($"Close re-quote (repost): price -> {roPx:0.00}, id={_lastCloseOrderId}")
+                                            _lastCloseRequotePrice = roPx
+
                                         Catch ex As Exception
                                             If ex.Message.Contains("not_open_order") Then
                                                 RaiseEvent Info("Close re-quote: original order filled during repost; stopping requote loop.")
@@ -1430,7 +1455,8 @@ Namespace DeribitContango
             End While
         End Function
 
-
+        ' Prevent same-price requotes for close-side
+        Private _lastCloseRequotePrice As Decimal = 0D
 
         ' Close-side requote logging throttle
         Private _lastCloseRequoteLogUtc As DateTime = DateTime.MinValue

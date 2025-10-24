@@ -436,15 +436,14 @@ Public Class frmContangoMain
         End Try
     End Sub
 
-
     Private Async Sub btnCloseAll_Click(sender As Object, e As EventArgs) Handles btnCloseAll.Click
         Try
             Await _pm.CloseAllAsync()
-            AppendLog("CloseAll requested; awaiting reduce_only fills.")
         Catch ex As Exception
             AppendLog("CloseAll error: " & ex.Message)
         End Try
     End Sub
+
 
     ' Events
 

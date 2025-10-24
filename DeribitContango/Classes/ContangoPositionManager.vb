@@ -532,6 +532,10 @@ Namespace DeribitContango
             Try
                 StopRequoteLoop()
                 _requoteCts = New CancellationTokenSource()
+
+                _lastRequotePrice = 0D ' Reset price tracking for new entry order
+
+
                 Call Task.Run(Function() RequoteLoopAsync(_requoteCts.Token))
             Catch
             End Try
@@ -579,10 +583,12 @@ Namespace DeribitContango
                             Dim curPx As Decimal = cur?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
 
                             ' Skip if target price hasn't changed meaningfully from last requote
-                            If Math.Abs(targetPx - _lastRequotePrice) < _futTick Then
+                            If _lastRequotePrice > 0D AndAlso Math.Abs(targetPx - _lastRequotePrice) < _futTick Then
+                                RaiseEvent Info($"Re-quote: target={targetPx:0.00} same as last={_lastRequotePrice:0.00}; skipping to preserve queue")
                                 doDelay = True
                                 Continue While
                             End If
+
 
                             ' Tick delta vs. current resting
                             Dim tickSteps As Integer = 0
@@ -623,6 +629,8 @@ Namespace DeribitContango
                                     canRequote = False
                                 End If
                             End If
+
+                            RaiseEvent Info($"Re-quote: analyzing current={curPx:0.00}, target={targetPx:0.00}, last={_lastRequotePrice:0.00}, delta={tickSteps} ticks")
 
                             If canRequote Then
                                 Dim edited As Boolean = False
@@ -689,8 +697,12 @@ Namespace DeribitContango
                                         Catch
                                         End Try
 
-                                        RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
-                                        _lastRequotePrice = roPx
+                                        'RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
+                                        RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00} (target was {targetPx:0.00}), id={_lastFutOrderId}")
+
+                                        '_lastRequotePrice = roPx
+                                        _lastRequotePrice = targetPx  ' Track the intended target, not exchange-acknowledged price
+
 
                                     Catch
                                         ' ignore; pace and retry

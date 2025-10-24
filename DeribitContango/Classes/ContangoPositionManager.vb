@@ -544,6 +544,12 @@ Namespace DeribitContango
             End Try
         End Sub
 
+        ' Entry-side requote throttling (add after existing fields)
+        Private _lastEntryRequoteThrottleUtc As DateTime = DateTime.MinValue
+        Private _entryLargeMoveLastUtc As DateTime = DateTime.MinValue
+        Private _entryExtremeMoveLastUtc As DateTime = DateTime.MinValue
+
+
         Private Async Function RequoteLoopAsync(ct As Threading.CancellationToken) As Task
             While Not ct.IsCancellationRequested
                 Dim doDelay As Boolean = False
@@ -575,32 +581,71 @@ Namespace DeribitContango
                                 tickSteps = CInt(Math.Round((targetPx - curPx) / _futTick, MidpointRounding.AwayFromZero))
                             End If
 
-                            ' Only edit/repost if improvement within guard band
-                            'If Math.Abs(tickSteps) >= _requoteMinTicks AndAlso Math.Abs(tickSteps) <= _requoteMaxTicks Then
-                            If Math.Abs(tickSteps) >= RequoteMinTicks AndAlso Math.Abs(tickSteps) <= 3 Then
+                            ' Tiered requoting strategy for entry-side
+                            Dim canRequote As Boolean = False
+                            Dim requoteStrategy As String = ""
+
+                            If Math.Abs(tickSteps) < RequoteMinTicks Then
+                                canRequote = False
+                            ElseIf Math.Abs(tickSteps) <= 3 Then
+                                canRequote = True
+                                requoteStrategy = "standard"
+                            ElseIf Math.Abs(tickSteps) <= 10 Then
+                                canRequote = True
+                                requoteStrategy = "repost_only"
+                            ElseIf Math.Abs(tickSteps) <= 25 Then
+                                ' Large movement - throttled requoting
+                                Dim checkTime = DateTime.UtcNow
+                                If (checkTime - _entryLargeMoveLastUtc).TotalSeconds > 5 Then
+                                    canRequote = True
+                                    requoteStrategy = "large_move"
+                                    _entryLargeMoveLastUtc = checkTime
+                                Else
+                                    canRequote = False
+                                End If
+                            Else
+                                ' Extreme movements - very conservative
+                                Dim checkTime2 = DateTime.UtcNow
+                                If (checkTime2 - _entryExtremeMoveLastUtc).TotalSeconds > 15 Then
+                                    canRequote = True
+                                    requoteStrategy = "extreme_move"
+                                    _entryExtremeMoveLastUtc = checkTime2
+                                Else
+                                    canRequote = False
+                                End If
+                            End If
+
+                            If canRequote Then
                                 Dim edited As Boolean = False
 
-                                ' Try in-place edit first to preserve queue (post_only + limit)
-                                Try
-                                    Dim editRes = Await _api.EditOrderAsync(_lastFutOrderId, targetPx, Nothing, True)
-                                    edited = True
-                                    Dim eordPx As Decimal = targetPx
+                                ' Strategy-based approach
+                                If requoteStrategy = "standard" Then
+                                    ' Try in-place edit first to preserve queue (post_only + limit)
                                     Try
-                                        Dim eord = editRes?("order")?.Value(Of JObject)()
-                                        Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
-                                        If pxAck > 0D Then eordPx = pxAck
+                                        Dim editRes = Await _api.EditOrderAsync(_lastFutOrderId, targetPx, Nothing, True)
+                                        edited = True
+                                        Dim eordPx As Decimal = targetPx
+                                        Try
+                                            Dim eord = editRes?("order")?.Value(Of JObject)()
+                                            Dim pxAck = eord?.Value(Of Decimal?)("price").GetValueOrDefault(0D)
+                                            If pxAck > 0D Then eordPx = pxAck
+                                        Catch
+                                        End Try
+                                        RaiseEvent Info($"Re-quote edit: price -> {eordPx:0.00}")
                                     Catch
+                                        edited = False
                                     End Try
-                                    RaiseEvent Info($"Re-quote edit: price -> {eordPx:0.00}")
-                                Catch
-                                    edited = False
-                                End Try
+                                End If
 
-                                ' 2) If edit failed (crossing risk or edit not allowed), cancel + repost
+                                ' If edit failed or using repost-only strategy, cancel + repost
                                 If Not edited Then
+                                    If requoteStrategy <> "standard" Then
+                                        RaiseEvent Info($"Re-quote: using {requoteStrategy} strategy (delta={tickSteps})")
+                                    End If
+
                                     Try
                                         _cancelRepostInFlight = True
-                                        _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(3)  ' grace for order-state watchers
+                                        _repostGuardUntilUtc = DateTime.UtcNow.AddSeconds(3)
 
                                         Await _api.CancelOrderAsync(_lastFutOrderId)
 
@@ -610,16 +655,16 @@ Namespace DeribitContango
                                         End SyncLock
 
                                         Dim repost = Await _api.PlaceOrderAsync(
-                                          instrument:=FuturesInstrument,
-                                          side:="sell",
-                                          amount:=amtUsd,
-                                          price:=targetPx,
-                                          orderType:="limit",
-                                          tif:="good_til_cancelled",
-                                          postOnly:=True,
-                                          reduceOnly:=False,
-                                          label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
-                                        )
+                                  instrument:=FuturesInstrument,
+                                  side:="sell",
+                                  amount:=amtUsd,
+                                  price:=targetPx,
+                                  orderType:="limit",
+                                  tif:="good_til_cancelled",
+                                  postOnly:=True,
+                                  reduceOnly:=False,
+                                  label:=$"ContangoFutRequote_{DateTime.UtcNow:HHmmss}"
+                                )
 
                                         TrackOrder(repost)
                                         Dim ro = repost?("order")?.Value(Of JObject)()
@@ -642,9 +687,17 @@ Namespace DeribitContango
                                     End Try
                                 End If
 
-
-
                             Else
+                                ' Log why requoting was blocked (throttled)
+                                Dim logTime = DateTime.UtcNow
+                                If (logTime - _lastEntryRequoteThrottleUtc).TotalSeconds > 10 Then
+                                    If Math.Abs(tickSteps) < RequoteMinTicks Then
+                                        RaiseEvent Info($"Re-quote: delta={tickSteps} < min_ticks={RequoteMinTicks}; no action needed")
+                                    Else
+                                        RaiseEvent Info($"Re-quote: delta={tickSteps} throttled; waiting for next window")
+                                    End If
+                                    _lastEntryRequoteThrottleUtc = logTime
+                                End If
                                 doDelay = True
                             End If
                         End If
@@ -665,8 +718,6 @@ Namespace DeribitContango
                 End If
             End While
         End Function
-
-
 
         Public Property RequoteMinTicks As Integer
             Get

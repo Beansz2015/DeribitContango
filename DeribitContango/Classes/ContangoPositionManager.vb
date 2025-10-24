@@ -1121,7 +1121,10 @@ Namespace DeribitContango
 
                     RaiseEvent Info("CloseAll requested; awaiting reduce_only fills.")
 
-                    ' Only clean up entry-side state if there was actually a position to close
+                    ' Keep PM active during close cycle - do NOT call SetActive(False) here
+                    ' The close monitor will deactivate PM when both futures and spot are flat
+
+                    ' Only clean up entry-side state
                     StopRequoteLoop()
                     StopFillMonitorLoop()
                     SyncLock _lock
@@ -1129,7 +1132,7 @@ Namespace DeribitContango
                         _hedgeWatchTsUtc = Date.MinValue
                     End SyncLock
                     _lastFutOrderId = Nothing
-                    SetActive(False)
+
 
                 Else
                     RaiseEvent Info("CloseAll: no short futures position detected.")
@@ -1323,15 +1326,21 @@ Namespace DeribitContango
                         Dim amt = RoundDownToStep(_openSpotHedgeBtc, _spotAmountStep)
                         If amt >= _spotMinAmount Then
                             Dim sell = Await _api.PlaceOrderAsync(
-            instrument:=SpotInstrument,
-            side:="sell",
-            amount:=amt,
-            orderType:="market_limit",
-            tif:="good_til_cancelled",
-            label:="ContangoSpotML_Close"
-          )
+                                instrument:=SpotInstrument,
+                                side:="sell",
+                                amount:=amt,
+                                orderType:="market_limit",
+                                tif:="good_til_cancelled",
+                                label:="ContangoSpotML_Close"
+                            )
                             TrackOrder(sell)
                             RaiseEvent Info($"CloseMonitor: Spot market_limit sell placed amt={amt:0.########}")
+
+                            ' Clear position data and deactivate PM after both legs are closed
+                            ClearPositionData()
+                            SetActive(False)
+                            RaiseEvent Info("CloseMonitor: Close cycle completed; PM deactivated.")
+
                         Else
                             RaiseEvent Info("CloseMonitor: spot amount below min_trade_amount; nothing to sell.")
                         End If

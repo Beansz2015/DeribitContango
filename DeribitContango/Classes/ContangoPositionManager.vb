@@ -589,7 +589,6 @@ Namespace DeribitContango
                                 Continue While
                             End If
 
-
                             ' Tick delta vs. current resting
                             Dim tickSteps As Integer = 0
                             If _futTick > 0D AndAlso curPx > 0D Then
@@ -649,8 +648,7 @@ Namespace DeribitContango
                                         Catch
                                         End Try
                                         RaiseEvent Info($"Re-quote edit: price -> {eordPx:0.00}")
-                                        _lastRequotePrice = eordPx
-
+                                        _lastRequotePrice = targetPx  ' Track the intended target, not exchange-acknowledged price
                                     Catch
                                         edited = False
                                     End Try
@@ -697,12 +695,8 @@ Namespace DeribitContango
                                         Catch
                                         End Try
 
-                                        'RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00}, id={_lastFutOrderId}")
                                         RaiseEvent Info($"Re-quote repost: price -> {roPx:0.00} (target was {targetPx:0.00}), id={_lastFutOrderId}")
-
-                                        '_lastRequotePrice = roPx
                                         _lastRequotePrice = targetPx  ' Track the intended target, not exchange-acknowledged price
-
 
                                     Catch
                                         ' ignore; pace and retry
@@ -743,6 +737,7 @@ Namespace DeribitContango
                 End If
             End While
         End Function
+
 
         Public Property RequoteMinTicks As Integer
             Get

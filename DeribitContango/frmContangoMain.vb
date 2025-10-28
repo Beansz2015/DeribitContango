@@ -689,6 +689,12 @@ Public Class frmContangoMain
 
             UpdatePositionDisplay()
 
+            ' Force UI refresh when the position just became inactive
+            If _pm IsNot Nothing AndAlso (Not _pm.IsActive) AndAlso _pm.HasEntryBasisData Then
+                ' Ensure entry-basis area clears as soon as position ends
+                UpdatePositionDisplay()
+            End If
+
         Catch
         End Try
     End Sub
@@ -731,6 +737,9 @@ Public Class frmContangoMain
                 lblSpotUSDValue.Text = "-"
                 lblFuturesUSDValue.Text = "-"
                 lblInstrumentValue.Text = "-"
+                lblEntryBasis.Text = "-"
+                lblEstimatedPnl.Text = "-"
+
             End If
         Catch
             ' Swallow display errors

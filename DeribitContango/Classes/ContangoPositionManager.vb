@@ -86,10 +86,12 @@ Namespace DeribitContango
         Public ReadOnly Property EstimatedPnlPercent As Decimal
             Get
                 If _entryBasisPercent = 0D Then Return 0D
-                ' P&L = Current Basis - Entry Basis (expressed as percentage change)
-                Return (_monitor.BasisMid - _entryBasisPercent) * 100D
+                ' For SHORT futures basis trade: profit when basis narrows (goes negative)
+                ' P&L = Entry Basis - Current Basis (INVERTED from previous calculation)
+                Return (_entryBasisPercent - _monitor.BasisMid) * 100D
             End Get
         End Property
+
 
         Public ReadOnly Property EstimatedPnlUsd As Decimal
             Get

@@ -325,6 +325,25 @@ Namespace DeribitContango
             Return res("result").Value(Of JObject)()
         End Function
 
+        Public Async Function GetUserTradesAsync(currency As String,
+                                         Optional instrument As String = Nothing,
+                                         Optional count As Integer = 50) As Task(Of JArray)
+            Dim p As New JObject From {
+        {"currency", currency},
+        {"count", count},
+        {"sorting", "desc"}
+    }
+
+            If Not String.IsNullOrEmpty(instrument) Then
+                p("instrument_name") = instrument
+            End If
+
+            Dim res = Await SendAsync("private/get_user_trades_by_currency", p)
+            Dim arr = res("result")?.Value(Of JArray)("trades")
+            If arr Is Nothing Then Return New JArray()
+            Return arr
+        End Function
+
 
         Public Sub Dispose() Implements IDisposable.Dispose
             Try

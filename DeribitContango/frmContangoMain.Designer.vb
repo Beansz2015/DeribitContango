@@ -84,6 +84,10 @@ Partial Class frmContangoMain
         grpLog = New GroupBox()
         txtLog = New RichTextBox()
         grpPosition = New GroupBox()
+        Label10 = New Label()
+        Label13 = New Label()
+        lblEntryBasis = New Label()
+        lblEstimatedPnl = New Label()
         lblPositionSpotBTC = New Label()
         lblPositionSpotUSD = New Label()
         lblPositionFuturesUSD = New Label()
@@ -601,7 +605,7 @@ Partial Class frmContangoMain
         ' lblMinUSD
         ' 
         lblMinUSD.AutoSize = True
-        lblMinUSD.Font = New Font("Segoe UI", 8F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        lblMinUSD.Font = New Font("Segoe UI", 8.0F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
         lblMinUSD.Location = New Point(144, 139)
         lblMinUSD.Margin = New Padding(4, 0, 4, 0)
         lblMinUSD.Name = "lblMinUSD"
@@ -809,6 +813,10 @@ Partial Class frmContangoMain
         ' grpPosition
         ' 
         grpPosition.BackColor = Color.FromArgb(CByte(255), CByte(248), CByte(220))
+        grpPosition.Controls.Add(Label10)
+        grpPosition.Controls.Add(Label13)
+        grpPosition.Controls.Add(lblEntryBasis)
+        grpPosition.Controls.Add(lblEstimatedPnl)
         grpPosition.Controls.Add(lblPositionSpotBTC)
         grpPosition.Controls.Add(lblPositionSpotUSD)
         grpPosition.Controls.Add(lblPositionFuturesUSD)
@@ -824,6 +832,46 @@ Partial Class frmContangoMain
         grpPosition.TabIndex = 50
         grpPosition.TabStop = False
         grpPosition.Text = "Position Details"
+        ' 
+        ' Label10
+        ' 
+        Label10.AutoSize = True
+        Label10.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        Label10.Location = New Point(462, 20)
+        Label10.Name = "Label10"
+        Label10.Size = New Size(101, 20)
+        Label10.TabIndex = 59
+        Label10.Text = "Entry Basis:"
+        ' 
+        ' Label13
+        ' 
+        Label13.AutoSize = True
+        Label13.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, CByte(0))
+        Label13.Location = New Point(462, 40)
+        Label13.Name = "Label13"
+        Label13.Size = New Size(78, 20)
+        Label13.TabIndex = 61
+        Label13.Text = "Est. PnL:"
+        ' 
+        ' lblEntryBasis
+        ' 
+        lblEntryBasis.AutoSize = True
+        lblEntryBasis.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblEntryBasis.Location = New Point(572, 20)
+        lblEntryBasis.Name = "lblEntryBasis"
+        lblEntryBasis.Size = New Size(16, 20)
+        lblEntryBasis.TabIndex = 60
+        lblEntryBasis.Text = "-"
+        ' 
+        ' lblEstimatedPnl
+        ' 
+        lblEstimatedPnl.AutoSize = True
+        lblEstimatedPnl.Font = New Font("Microsoft Sans Serif", 8.25F, FontStyle.Bold, GraphicsUnit.Point, CByte(0))
+        lblEstimatedPnl.Location = New Point(572, 40)
+        lblEstimatedPnl.Name = "lblEstimatedPnl"
+        lblEstimatedPnl.Size = New Size(16, 20)
+        lblEstimatedPnl.TabIndex = 62
+        lblEstimatedPnl.Text = "-"
         ' 
         ' lblPositionSpotBTC
         ' 
@@ -907,7 +955,7 @@ Partial Class frmContangoMain
         ' 
         ' frmContangoMain
         ' 
-        AutoScaleDimensions = New SizeF(10F, 25F)
+        AutoScaleDimensions = New SizeF(10.0F, 25.0F)
         AutoScaleMode = AutoScaleMode.Font
         BackColor = Color.WhiteSmoke
         ClientSize = New Size(1143, 1274)
@@ -919,7 +967,7 @@ Partial Class frmContangoMain
         Controls.Add(grpPosition)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V2.3b"
+        Text = "Deribit Contango Basis Trader - V2.3c"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)
@@ -1011,5 +1059,9 @@ Partial Class frmContangoMain
     Friend WithEvents lblSpotUSDValue As System.Windows.Forms.Label
     Friend WithEvents lblFuturesUSDValue As System.Windows.Forms.Label
     Friend WithEvents lblInstrumentValue As System.Windows.Forms.Label
+    Friend WithEvents Label10 As Label
+    Friend WithEvents Label13 As Label
+    Friend WithEvents lblEntryBasis As Label
+    Friend WithEvents lblEstimatedPnl As Label
 
 End Class

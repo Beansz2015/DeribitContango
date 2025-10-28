@@ -159,6 +159,11 @@ Public Class frmContangoMain
 
                 AppendLog($"Redetected active basis: futures={_pm.FuturesInstrument} (contracts={signedContracts}), spot={Math.Max(spotBtc, awf):0.00000000} BTC; expiry automation armed.")
 
+                ' Calculate entry basis from trade history for restarted positions
+                If hasActiveFutures AndAlso spotBtcBal >= 0.0001D Then
+                    Await _pm.CalculateEntryBasisFromTradesAsync()
+                End If
+
 
                 btnEnter.Enabled = False
                 _entryWatchRunning = False
@@ -652,6 +657,22 @@ Public Class frmContangoMain
 
                 ' Show instrument name
                 lblInstrumentValue.Text = _pm.FuturesInstrument
+
+                ' Entry basis and P&L tracking
+                If _pm.HasEntryBasisData Then
+                    lblEntryBasis.Text = $"{_pm.EntryBasisPercent:P2}"
+
+                    Dim pnlUsd = _pm.EstimatedPnlUsd
+                    Dim pnlPct = _pm.EstimatedPnlPercent
+                    Dim pnlColor As Color = If(pnlPct >= 0, Color.Green, Color.Red)
+
+                    lblEstimatedPnl.Text = $"${pnlUsd:+0.00;-0.00} ({pnlPct:+0.00%;-0.00%})"
+                    lblEstimatedPnl.ForeColor = pnlColor
+                Else
+                    lblEntryBasis.Text = "-"
+                    lblEstimatedPnl.Text = "-"
+                    lblEstimatedPnl.ForeColor = Color.Black
+                End If
             Else
                 ' Clear display when no active position
                 lblSpotBTCValue.Text = "-"

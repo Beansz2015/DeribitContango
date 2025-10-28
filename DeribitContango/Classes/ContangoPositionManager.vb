@@ -72,6 +72,39 @@ Namespace DeribitContango
         ' Track actual futures position size for display
         Private _actualFuturesUsdNotional As Decimal = 0D
 
+        ' Entry basis tracking via trade analysis
+        Private _entryBasisPercent As Decimal = 0D
+        Private _entryTimestamp As DateTime = Date.MinValue
+
+        'Entry basis tracking via trade analysis
+        Public ReadOnly Property EntryBasisPercent As Decimal
+            Get
+                Return _entryBasisPercent
+            End Get
+        End Property
+
+        Public ReadOnly Property EstimatedPnlPercent As Decimal
+            Get
+                If _entryBasisPercent = 0D Then Return 0D
+                ' P&L = Current Basis - Entry Basis (expressed as percentage change)
+                Return (_monitor.BasisMid - _entryBasisPercent) * 100D
+            End Get
+        End Property
+
+        Public ReadOnly Property EstimatedPnlUsd As Decimal
+            Get
+                If Math.Abs(_actualFuturesUsdNotional) = 0D Then Return 0D
+                Dim basisChangePct As Decimal = EstimatedPnlPercent / 100D
+                Return Math.Abs(_actualFuturesUsdNotional) * basisChangePct
+            End Get
+        End Property
+
+        Public ReadOnly Property HasEntryBasisData As Boolean
+            Get
+                Return _entryBasisPercent <> 0D
+            End Get
+        End Property
+
         ' Public way to set the active-cycle flag during startup redetection.
         Public Sub SetActiveFromExternal(active As Boolean)
             SetActive(active)
@@ -91,7 +124,6 @@ Namespace DeribitContango
             ' For display, we want the USD notional value
             _actualFuturesUsdNotional = contracts ' Keep as-is since it's already the correct value (-20)
         End Sub
-
 
 
         ' New: probe if an entry order is live
@@ -179,7 +211,14 @@ Namespace DeribitContango
         Public Sub ClearPositionData()
             _openSpotHedgeBtc = 0D
             _actualFuturesUsdNotional = 0D
+
+            ' Clear entry basis tracking
+            _entryBasisPercent = 0D
+            _entryTimestamp = Date.MinValue
         End Sub
+
+
+
 
 
         ' ============ Instrument discovery/specs ============
@@ -361,6 +400,83 @@ Namespace DeribitContango
 
             ' Return the amount that gives the smallest USD difference
             Return If(diffDown <= diffUp, amountDown, amountUp)
+        End Function
+
+
+        Public Async Function CalculateEntryBasisFromTradesAsync() As Task
+            Try
+                ' Only calculate if not already set during current session
+                If _entryBasisPercent <> 0D Then Return
+
+                ' Get recent BTC trades (includes both futures and spot)
+                Dim allTrades = Await _api.GetUserTradesAsync("BTC", Nothing, 100)
+
+                If allTrades Is Nothing OrElse allTrades.Count = 0 Then
+                    RaiseEvent Info("Entry basis: no trade history available")
+                    Return
+                End If
+
+                ' Separate futures and spot trades
+                Dim futuresTrades As New List(Of JObject)()
+                Dim spotTrades As New List(Of JObject)()
+
+                For Each trade In allTrades
+                    Dim tradeObj = CType(trade, JObject)
+                    Dim instrument = tradeObj.Value(Of String)("instrument_name")
+
+                    If String.Equals(instrument, FuturesInstrument, StringComparison.OrdinalIgnoreCase) Then
+                        futuresTrades.Add(tradeObj)
+                    ElseIf String.Equals(instrument, SpotInstrument, StringComparison.OrdinalIgnoreCase) Then
+                        spotTrades.Add(tradeObj)
+                    End If
+                Next
+
+                ' Find most recent correlated futures sell + spot buy pair
+                Dim bestFutPrice As Decimal = 0D
+                Dim bestSpotPrice As Decimal = 0D
+                Dim bestTimestamp As DateTime = Date.MinValue
+
+                For Each ft In futuresTrades
+                    Dim futTime = DateTimeOffset.FromUnixTimeMilliseconds(ft.Value(Of Long)("timestamp")).UtcDateTime
+                    Dim futPrice = ft.Value(Of Decimal)("price")
+                    Dim futSide = ft.Value(Of String)("direction")
+
+                    ' Only consider sell trades (our short position entries)
+                    If futSide <> "sell" Then Continue For
+
+                    ' Look for matching spot buy within 2-minute window
+                    For Each st In spotTrades
+                        Dim spotTime = DateTimeOffset.FromUnixTimeMilliseconds(st.Value(Of Long)("timestamp")).UtcDateTime
+                        Dim spotPrice = st.Value(Of Decimal)("price")
+                        Dim spotSide = st.Value(Of String)("direction")
+
+                        ' Only consider buy trades (our spot hedges)
+                        If spotSide <> "buy" Then Continue For
+
+                        ' Check if trades occurred within 120 seconds and are more recent
+                        Dim timeDiff = Math.Abs((futTime - spotTime).TotalSeconds)
+                        If timeDiff <= 120 AndAlso futTime > bestTimestamp Then
+                            bestFutPrice = futPrice
+                            bestSpotPrice = spotPrice
+                            bestTimestamp = futTime
+                        End If
+                    Next
+                Next
+
+                ' Calculate entry basis from best correlated pair
+                If bestFutPrice > 0D AndAlso bestSpotPrice > 0D Then
+                    ' Basis = (Future - Spot) / Spot
+                    Dim calculatedBasis = (bestFutPrice - bestSpotPrice) / bestSpotPrice
+                    _entryBasisPercent = calculatedBasis
+                    _entryTimestamp = bestTimestamp
+                    RaiseEvent Info($"Entry basis calculated from trades: {calculatedBasis:P2} at {bestTimestamp:HH:mm:ss}")
+                Else
+                    RaiseEvent Info("Entry basis: no correlated futures/spot trades found")
+                End If
+
+            Catch ex As Exception
+                RaiseEvent Info($"Entry basis calculation error: {ex.Message}")
+            End Try
         End Function
 
 
@@ -994,6 +1110,15 @@ Namespace DeribitContango
                 Return
             End If
 
+            ' Record entry basis ONLY for NEW positions (not app restarts)
+            ' This triggers only when _entryBasisPercent is still 0 AND we're in an active entry cycle
+            Dim isNewPosition As Boolean = (_entryBasisPercent = 0D) AndAlso (Not String.IsNullOrEmpty(_lastFutOrderId))
+            If isNewPosition Then
+                _entryBasisPercent = _monitor.BasisMid
+                _entryTimestamp = DateTime.UtcNow
+                RaiseEvent Info($"Entry basis recorded: {_entryBasisPercent:P2}")
+            End If
+
             ' Market‑Limit: taker execute now, remainder rests at exec price; no price sent
             Dim spotOrder = Await _api.PlaceOrderAsync(
         instrument:=SpotInstrument,
@@ -1013,6 +1138,7 @@ Namespace DeribitContango
             Dim valueDiff As Decimal = Math.Abs(futuresUsdNotional - spotUsdValue)
             RaiseEvent Info($"Spot market_limit hedge placed amt={amt:0.########} (~${spotUsdValue:0.00} vs ${futuresUsdNotional:0.00} futures, diff=${valueDiff:0.00})")
         End Function
+
 
 
 

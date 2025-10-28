@@ -159,10 +159,21 @@ Public Class frmContangoMain
 
                 AppendLog($"Redetected active basis: futures={_pm.FuturesInstrument} (contracts={signedContracts}), spot={Math.Max(spotBtc, awf):0.00000000} BTC; expiry automation armed.")
 
-                ' Calculate entry basis from trade history for restarted positions
-                If hasActiveFutures AndAlso spotBtcBal >= 0.0001D Then
-                    Await _pm.CalculateEntryBasisFromTradesAsync()
-                End If
+
+                ' Rebuild entry basis from trade history on restart if we have an active basis trade
+                Try
+                    Dim hasActiveFutures = Await DetectHasActiveFuturesAsync()
+                    Dim spotBtcBal = Await GetSpotBtcBalanceAsync()
+
+                    ' Treat spot >= min trade amount as “spot leg present”
+                    Dim minSpot As Decimal = 0.0001D
+
+                    If hasActiveFutures AndAlso spotBtcBal >= minSpot Then
+                        Await _pm.CalculateEntryBasisFromTradesAsync()
+                    End If
+                Catch
+                    ' Swallow: not critical to block UI
+                End Try
 
 
                 btnEnter.Enabled = False
@@ -206,6 +217,47 @@ Public Class frmContangoMain
         AppendLog(If(active, "Entry disabled: position cycle active.", "Entry enabled: no active position."))
     End Sub
 
+    Private Async Function DetectHasActiveFuturesAsync() As Task(Of Boolean)
+        Try
+            ' Read Deribit positions and check selected weekly instrument
+            Dim posArr = Await _api.GetPositionsAsync("BTC", "future")
+            If posArr Is Nothing OrElse posArr.Count = 0 Then Return False
+
+            For Each p In posArr
+                Dim o = p.Value(Of JObject)()
+                Dim instr = o.Value(Of String)("instrument_name")
+                If String.Equals(instr, _pm.FuturesInstrument, StringComparison.OrdinalIgnoreCase) Then
+                    Dim sz As Integer = o.Value(Of Integer)("size")
+                    If sz <> 0 Then
+                        Return True
+                    End If
+                End If
+            Next
+            Return False
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Private Async Function GetSpotBtcBalanceAsync() As Task(Of Decimal)
+        Try
+            ' Uses private/get_account_summary extended = true
+            Dim acct = Await _api.GetAccountSummaryAsync("BTC")
+            If acct Is Nothing Then Return 0D
+
+            ' Prefer available balance if exposed, else fallback to balance
+            Dim avail = acct.Value(Of Decimal?)("available_funds").GetValueOrDefault(0D)
+            Dim balance = acct.Value(Of Decimal?)("balance").GetValueOrDefault(0D)
+
+            ' If available funds looks zero (due to margin context), use balance for spot
+            Dim spot = If(avail > 0D, avail, balance)
+
+            ' If your UI/monitor already tracks spot base balance, you can replace this with that
+            Return Math.Max(spot, 0D)
+        Catch
+            Return 0D
+        End Try
+    End Function
 
 
     Private Sub numRequoteMs_ValueChanged(sender As Object, e As EventArgs) Handles numRequoteMs.ValueChanged

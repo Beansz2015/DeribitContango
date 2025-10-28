@@ -1064,13 +1064,28 @@ Namespace DeribitContango
                             If ordState = "cancelled" AndAlso guardActive Then
                                 doDelay = True   ' transient cancel during repost; keep monitoring
                             Else
-                                If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
-       OrElse ordState = "cancelled" _
-       OrElse ordState = "rejected" Then
+                                'If (String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0) _
+                                'OrElse ordState = "cancelled" _
+                                'OrElse ordState = "rejected" Then
+                                '                        _lastFutOrderId = Nothing
+                                '                       SetActive(False)
+                                '                      StopRequoteLoop()
+                                '                 End If
+
+                                If String.Equals(ordState, "filled", StringComparison.OrdinalIgnoreCase) AndAlso _pendingFutContracts = 0 Then
+                                    ' Futures order completely filled - stop requoting but KEEP position active
+                                    ' The position remains active until both futures and spot positions are established
+                                    _lastFutOrderId = Nothing
+                                    StopRequoteLoop()
+                                    ' Do NOT call SetActive(False) here - position is still being established
+                                ElseIf ordState = "cancelled" OrElse ordState = "rejected" Then
+                                    ' Order failed - completely abort the position cycle
                                     _lastFutOrderId = Nothing
                                     SetActive(False)
                                     StopRequoteLoop()
                                 End If
+
+
                                 Exit While
                             End If
                         End If

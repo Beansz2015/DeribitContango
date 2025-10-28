@@ -1079,17 +1079,17 @@ Public Class frmContangoMain
 
         Finally
             ' Thread-safe UI update - re-enable enter button only if no active cycle/order
-            If InvokeRequired Then
-                BeginInvoke(Sub()
-                                If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
-                                    btnEnter.Enabled = True
-                                End If
-                            End Sub)
-            Else
-                If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
-                    btnEnter.Enabled = True
-                End If
-            End If
+            '   If InvokeRequired Then
+            '   BeginInvoke(Sub()
+            '   If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
+            '   btnEnter.Enabled = True
+            '   End If
+            '  End Sub)
+            '   Else
+            '  If _pm Is Nothing OrElse (Not _pm.IsActive AndAlso Not _pm.HasLiveEntryOrder) Then
+            '  btnEnter.Enabled = True
+            '  End If
+            '  End If
         End Try
     End Function
 

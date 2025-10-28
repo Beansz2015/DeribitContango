@@ -337,6 +337,33 @@ Namespace DeribitContango
             Return steps * stepSz
         End Function
 
+        ' Optimized spot amount to minimize USD value difference between futures and spot
+        Private Function OptimizeSpotAmountForValueMatch(futuresUsdNotional As Decimal, btcPrice As Decimal) As Decimal
+            If btcPrice <= 0D Then Return _spotMinAmount
+
+            ' Calculate ideal BTC amount that matches futures USD value exactly
+            Dim idealBtc As Decimal = futuresUsdNotional / btcPrice
+
+            ' Get the two possible valid amounts: round down and round up to nearest step
+            Dim amountDown As Decimal = RoundDownToStep(idealBtc, _spotAmountStep)
+            Dim amountUp As Decimal = amountDown + _spotAmountStep
+
+            ' Ensure minimum amount compliance
+            If amountDown < _spotMinAmount Then amountDown = _spotMinAmount
+            If amountUp < _spotMinAmount Then amountUp = _spotMinAmount
+
+            ' Calculate USD value differences for both options
+            Dim usdValueDown As Decimal = amountDown * btcPrice
+            Dim usdValueUp As Decimal = amountUp * btcPrice
+
+            Dim diffDown As Decimal = Math.Abs(futuresUsdNotional - usdValueDown)
+            Dim diffUp As Decimal = Math.Abs(futuresUsdNotional - usdValueUp)
+
+            ' Return the amount that gives the smallest USD difference
+            Return If(diffDown <= diffUp, amountDown, amountUp)
+        End Function
+
+
 
         ' ============ Entry: futures first, spot on fills ============
 
@@ -952,38 +979,41 @@ Namespace DeribitContango
             End While
         End Function
 
-
-
         Private Async Function PlaceSpotIOCForContractsAsync(newDeltaContracts As Integer, refPx As Decimal) As Task
             If newDeltaContracts <= 0 OrElse refPx <= 0D Then Return
 
-            ' Convert inverse futures contracts to BTC
-            Dim btc As Decimal = (newDeltaContracts * 10D) / refPx
+            ' Calculate USD notional value of the futures contracts
+            Dim futuresUsdNotional As Decimal = newDeltaContracts * 10D
 
-            ' Snap to exchange increments with no residual carry
+            ' Use optimized spot amount calculation to minimize value difference
             Await RefreshInstrumentSpecsAsync()
-            Dim amt As Decimal = RoundDownToStep(btc, _spotAmountStep)
+            Dim amt As Decimal = OptimizeSpotAmountForValueMatch(futuresUsdNotional, refPx)
+
             If amt < _spotMinAmount Then
-                RaiseEvent Info($"hedge: computed {btc:0.########} BTC < min {_spotMinAmount}; skipped (market_limit)")
+                RaiseEvent Info($"hedge: optimized amount {amt:0.########} BTC < min {_spotMinAmount}; skipped (market_limit)")
                 Return
             End If
 
             ' Market‑Limit: taker execute now, remainder rests at exec price; no price sent
             Dim spotOrder = Await _api.PlaceOrderAsync(
-    instrument:=SpotInstrument,
-    side:="buy",
-    amount:=amt,
-    orderType:="market_limit",
-    tif:="good_til_cancelled",
-    label:="ContangoSpotML_Enter"
-  )
+        instrument:=SpotInstrument,
+        side:="buy",
+        amount:=amt,
+        orderType:="market_limit",
+        tif:="good_til_cancelled",
+        label:="ContangoSpotML_Enter"
+    )
             TrackOrder(spotOrder)
 
             ' NEW: proactively accrue live hedge so CloseMonitor can unwind even if TradeUpdate lags
             _openSpotHedgeBtc += amt
 
-            RaiseEvent Info($"Spot market_limit hedge placed amt={amt:0.########} (no residual mode)")
+            ' Calculate and log the value match for transparency
+            Dim spotUsdValue As Decimal = amt * refPx
+            Dim valueDiff As Decimal = Math.Abs(futuresUsdNotional - spotUsdValue)
+            RaiseEvent Info($"Spot market_limit hedge placed amt={amt:0.########} (~${spotUsdValue:0.00} vs ${futuresUsdNotional:0.00} futures, diff=${valueDiff:0.00})")
         End Function
+
 
 
 

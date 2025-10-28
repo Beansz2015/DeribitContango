@@ -919,7 +919,7 @@ Partial Class frmContangoMain
         Controls.Add(grpPosition)
         Margin = New Padding(4, 5, 4, 5)
         Name = "frmContangoMain"
-        Text = "Deribit Contango Basis Trader - V2.3a"
+        Text = "Deribit Contango Basis Trader - V2.3b"
         grpConnection.ResumeLayout(False)
         grpConnection.PerformLayout()
         grpMarket.ResumeLayout(False)

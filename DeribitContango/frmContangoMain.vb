@@ -62,6 +62,11 @@ Public Class frmContangoMain
 
             radUSD.Checked = True
 
+            If My.Settings.ThresholdPct > 0D OrElse My.Settings.ThresholdPct = 0D Then
+                numThreshold.Value = My.Settings.ThresholdPct
+            End If
+            _pm.EntryThreshold = CDec(numThreshold.Value) / 100D
+
             ' IMPORTANT: show EntryThreshold as percent
             numThreshold.Value = CDec(_pm.EntryThreshold * 100D)
 
@@ -1128,5 +1133,12 @@ Public Class frmContangoMain
         AppendLog($"Expiry automation armed for: {_expiryArmedUtc:yyyy-MM-dd HH:mm:ss} UTC")
     End Sub
 
+    Private Sub frmContangoMain_FormClosing(sender As Object, e As FormClosingEventArgs) Handles MyBase.FormClosing
+        Try
+            My.Settings.ThresholdPct = numThreshold.Value
+            My.Settings.Save()
+        Catch
+        End Try
+    End Sub
 
 End Class

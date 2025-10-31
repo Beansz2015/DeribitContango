@@ -407,8 +407,9 @@ Namespace DeribitContango
 
         Public Async Function CalculateEntryBasisFromTradesAsync() As Task
             Try
-                ' Only calculate if not already set during current session
-                If _entryBasisPercent <> 0D Then Return
+                ' Allow recalculation during new position establishment
+                Dim isRecalc As Boolean = (_entryBasisPercent <> 0D) AndAlso (Not String.IsNullOrEmpty(_lastFutOrderId))
+                If _entryBasisPercent <> 0D AndAlso Not isRecalc Then Return
 
                 ' Get recent BTC trades (includes both futures and spot)
                 Dim allTrades = Await _api.GetUserTradesAsync("BTC", Nothing, 100)
@@ -1127,14 +1128,19 @@ Namespace DeribitContango
                 Return
             End If
 
-            ' Record entry basis ONLY for NEW positions (not app restarts)
-            ' This triggers only when _entryBasisPercent is still 0 AND we're in an active entry cycle
+            ' Calculate precise entry basis from actual trade prices (new positions)
             Dim isNewPosition As Boolean = (_entryBasisPercent = 0D) AndAlso (Not String.IsNullOrEmpty(_lastFutOrderId))
             If isNewPosition Then
-                _entryBasisPercent = _monitor.BasisMid
-                _entryTimestamp = DateTime.UtcNow
-                RaiseEvent Info($"Entry basis recorded: {_entryBasisPercent:P2}")
+                ' Immediate calculation after spot trade is placed
+                Call Task.Run(Async Function()
+                                  Try
+                                      Await Task.Delay(1500) ' Brief delay for trade settlement
+                                      Await CalculateEntryBasisFromTradesAsync()
+                                  Catch
+                                  End Try
+                              End Function)
             End If
+
 
             ' Market‑Limit: taker execute now, remainder rests at exec price; no price sent
             Dim spotOrder = Await _api.PlaceOrderAsync(
